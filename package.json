@@ -1,7 +1,8 @@
 {
   "name": "htmx-json",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "src/htmx-json.js",
+  "unpkg": "src/htmx-json.js",
   "scripts": {
     "test": "karma start"
   },
@@ -9,6 +10,9 @@
   "author": "",
   "license": "ISC",
   "description": "",
+  "dependencies": {
+    "htmx.org": "^2.0.6"
+  },
   "devDependencies": {
     "jasmine-core": "^5.8.0",
     "karma": "^6.4.4",
