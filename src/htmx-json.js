@@ -108,7 +108,12 @@ const htmxJson = (function () {
       if (elm.hasAttribute('json-ignore')) {
         return elm;
       } else {
-        return recurse(elm, $this);
+        const getter = getGetter(elm, 'json-with');
+        if (getter) {
+          return recurse(elm, { ...getter($this), $parent: $this });
+        } else {
+          return recurse(elm, $this);
+        }
       }
     } else {
       return elm;

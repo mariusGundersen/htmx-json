@@ -4,31 +4,58 @@ Support for json response in htmx
 
 ## What is this?
 
-This htmx extension adds support for using json response in htmx. By using a combination of attributes and templates it can easily update the dom with new values from the json response.
+This htmx extension adds support for using json response in htmx. By using a combination of attributes and templates it can easily update the dom with new values from the json response. This way you can write your html in the html file and rely on a small json response.
 
-## Example
+## Install
+
+```html
+<script src="https://unpkg.com/htmx-json@1.0.0/src/htmx-json.js"></script>
+```
+
+## Usage
 
 Given an api endpoint that returns this json:
 
 ```json
 {
   "title": "Data",
-  "description": "This will be inserted into the element"
+  "show": true,
+  "list": [
+    "very",
+    "simple",
+    "and",
+    "cool"
+  ]
 }
 ```
 
-And this html
+Add attributes and templates to an html
 
 ```html
 <body hx-ext="json-swap">
   <div hx-get="/api/data" hx-trigger="load, every 60s" hx-swap="json">
-    <h2 json-text="title"></h2>
-    <p>
+    <h2 json-text="title">This will be replaced by the value of `title`</h2>
+    <p json-show="show">This will only be shown when `show` is true</p>
+    <ul>
+      <template json-each="list">
+        <li>${$this}</li>
+      </template>
+    </ul>
   </div>
 </body>
 ```
 
-The result will be
+You can use these attributes:
+
+* `json-text`
+* `json-if`
+* `json-each`
+* `@attribute`
+* `.property`
+* `json-show`/`json-hide`
+* `json-with`
+
+They are described below
 
 ## Features
 
@@ -113,15 +140,15 @@ Set any attribute using `@attribute="value"`:
 <a @href="`mailto:${email}`">${name}</a>
 ```
 
-### `.attributes`
+### `.property`
 
-Set any property using `.attribute="value"`:
+Set any property using `.property="value"`:
 
 ```html
 <span .style.background-color="color">${name}</span>
 ```
 
-The attribute needs to be converted from `camelCase` to `kebab-case` for it to be valid html.
+The property name needs to be converted from `camelCase` to `kebab-case` for it to be valid html.
 
 This means you can do very dirty stuff:
 
@@ -171,3 +198,21 @@ If you need to set the value to something other than the value directly you can 
 ```html
   <input name="hour" .value="new Date(dateTime).getHour()">
 ```
+
+### `json-with`
+
+Go into an object using `json-with` to select the property to use:
+
+```html
+<div json-with="address">
+  <strong>Street: ${street}</strong>
+  <span>Postal code: ${postCode}</span>
+  <span>Country: ${country}</span>
+</div>
+```
+
+### Properties
+
+* `$this`: The current object
+* `$parent`: The parent object, inside `json-with` or `json-each`
+* `$index`: The current index, inside `json-each`
