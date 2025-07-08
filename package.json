@@ -1,10 +1,11 @@
 {
   "name": "htmx-json",
-  "version": "1.1.0",
-  "main": "src/htmx-json.js",
-  "unpkg": "src/htmx-json.js",
+  "version": "1.1.1",
+  "main": "dist/htmx-json.min.js",
+  "unpkg": "dist/htmx-json.min.js",
   "scripts": {
-    "test": "karma start"
+    "test": "karma start",
+    "build": "node ./scripts/build.mjs"
   },
   "keywords": [],
   "author": "",
@@ -18,6 +19,11 @@
     "karma": "^6.4.4",
     "karma-chrome-launcher": "^3.2.0",
     "karma-firefox-launcher": "^2.1.3",
-    "karma-jasmine": "^5.1.0"
-  }
+    "karma-jasmine": "^5.1.0",
+    "uglify-js": "^3.19.3"
+  },
+  "files": [
+    "readme.md",
+    "dist/*.js"
+  ]
 }
