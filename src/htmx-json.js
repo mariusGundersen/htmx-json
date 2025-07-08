@@ -31,7 +31,7 @@ const htmxJson = (function () {
     if (elm instanceof DocumentFragment) {
       return recurse(elm, $this);
     } else if (elm instanceof Text) {
-      const textGetter = getOrCreate(elm, 'text', () => createTextGetter(elm.textContent));
+      const textGetter = getOrCreate(elm, 'text', () => createGetter('`' + elm.textContent + '`'));
       if (textGetter) {
         elm.textContent = textGetter($this);
       }
@@ -417,26 +417,6 @@ const htmxJson = (function () {
   `);
   }
 
-  /**
-   *
-   * @param {String | null} value
-   * @returns {Function | null}
-   */
-  function createTextGetter(value) {
-    if (!value) return null;
-    return new Function('$this', `
-    try {
-      with ($this){
-        return (\`${value}\`);
-      }
-    }catch(e){
-      if(e instanceof ReferenceError){
-        throw new ReferenceError(e.message + ' in '+JSON.stringify($this, null, 2));
-      }
-      throw e;
-    }
-  `)
-  }
 
   /**
    * @param {string} value

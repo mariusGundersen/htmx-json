@@ -9,7 +9,7 @@ This htmx extension adds support for using json response in htmx. By using a com
 ## Install
 
 ```html
-<script src="https://unpkg.com/htmx-json@1.0.0/src/htmx-json.js"></script>
+<script src="https://unpkg.com/htmx-json"></script>
 ```
 
 ## Usage
