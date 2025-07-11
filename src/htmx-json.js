@@ -25,7 +25,11 @@ const htmxJson = (function () {
   }
 
   /**
-   * @typedef {{$parent?: any, $index?: number}} Context
+   * @typedef {{
+   *   $parent: any | undefined,
+   *   $index: number | undefined,
+   *   $key: string | undefined
+   * }} Context
    * @typedef {($this: any, $ctx: Context) => any} Getter
    */
 
@@ -36,7 +40,11 @@ const htmxJson = (function () {
    * @param {Context} [$ctx]
    * @returns {Node}
    */
-  function swap(elm, $this, $ctx = {}) {
+  function swap(
+    elm,
+    $this,
+    $ctx = { $parent: undefined, $index: undefined, $key: undefined }
+  ) {
     if (elm instanceof DocumentFragment) {
       return recurse(elm, $this, $ctx);
     } else if (elm instanceof Text) {
@@ -123,6 +131,8 @@ const htmxJson = (function () {
         if (getter) {
           return recurse(elm, getter($this, $ctx), {
             $parent: { ...$ctx, __proto__: $this },
+            $index: undefined,
+            $key: undefined,
           });
         } else {
           return recurse(elm, $this, $ctx);
@@ -153,11 +163,11 @@ const htmxJson = (function () {
     );
     if (!end) return elm;
 
-    const keyGetter = getGetter(elm, "json-key");
-
     let existingComment = elm.nextSibling;
 
     const items = eachGetter($this, $ctx);
+
+    const keyGetter = getGetter(elm, "json-key");
 
     if (!Array.isArray(items)) {
       throw new Error("for-each only works with arrays");
@@ -165,7 +175,7 @@ const htmxJson = (function () {
 
     for (let $index = 0; $index < items.length; $index++) {
       const item = items[$index];
-      const newKey = keyGetter?.(item, $ctx) ?? $index.toString();
+      const newKey = keyGetter ? keyGetter(item, $ctx) : $index.toString();
 
       if (existingComment instanceof Comment && existingComment !== end) {
         const oldKey = existingComment.data;
@@ -180,6 +190,7 @@ const htmxJson = (function () {
           swapUntil(child, existingComment, item, {
             $parent: { ...$ctx, __proto__: $this },
             $index,
+            $key: newKey,
           });
         } else {
           // Different keys
@@ -197,7 +208,8 @@ const htmxJson = (function () {
             oldKeyExistsInList === false && i < items.length;
             i++
           ) {
-            oldKeyExistsInList = oldKey === (keyGetter?.(items[i], $ctx) ?? i);
+            oldKeyExistsInList =
+              oldKey === (keyGetter ? keyGetter(items[i], $ctx) : i);
           }
           if (oldKeyExistsInList) {
             const movingComment = findComment(existingComment, newKey);
@@ -224,6 +236,7 @@ const htmxJson = (function () {
               swapUntil(movingComment, existingComment, item, {
                 $parent: { ...$ctx, __proto__: $this },
                 $index,
+                $key: newKey,
               });
             } else {
               // Insert new item
@@ -235,6 +248,7 @@ const htmxJson = (function () {
               swapUntil(comment.nextSibling, existingComment, item, {
                 $parent: { ...$ctx, __proto__: $this },
                 $index,
+                $key: newKey,
               });
             }
           } else {
@@ -266,6 +280,7 @@ const htmxJson = (function () {
         swapUntil(comment.nextSibling, end, item, {
           $parent: { ...$ctx, __proto__: $this },
           $index,
+          $key: newKey,
         });
       } else {
         throw new Error("This should not have happened");
@@ -481,7 +496,7 @@ const htmxJson = (function () {
     // @ts-ignore
     return new Function(
       "$this",
-      "{$parent, $index}",
+      "{$parent, $index, $key}",
       `
         try {
           with ($this){
