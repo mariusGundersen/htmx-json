@@ -156,7 +156,6 @@ const htmxJson = (function () {
     const keyGetter = getGetter(elm, "json-key");
 
     let existingComment = elm.nextSibling;
-    let previousComment;
 
     const items = eachGetter($this, $ctx);
 
@@ -177,7 +176,6 @@ const htmxJson = (function () {
           // * recurse into children
           const child = existingComment.nextSibling;
           existingComment.data = newKey;
-          previousComment = existingComment;
           existingComment = findComment(existingComment) ?? end;
           swapUntil(child, existingComment, item, {
             $parent: { ...$ctx, __proto__: $this },
@@ -227,8 +225,6 @@ const htmxJson = (function () {
                 $parent: { ...$ctx, __proto__: $this },
                 $index,
               });
-
-              previousComment = movingComment;
             } else {
               // Insert new item
               const clone = elm.content.cloneNode(true);
@@ -240,7 +236,6 @@ const htmxJson = (function () {
                 $parent: { ...$ctx, __proto__: $this },
                 $index,
               });
-              previousComment = comment;
             }
           } else {
             // Remove current item
@@ -272,7 +267,6 @@ const htmxJson = (function () {
           $parent: { ...$ctx, __proto__: $this },
           $index,
         });
-        previousComment = comment;
       } else {
         throw new Error("This should not have happened");
       }
