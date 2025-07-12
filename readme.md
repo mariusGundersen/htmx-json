@@ -20,12 +20,7 @@ Given an api endpoint that returns this json:
 {
   "title": "Data",
   "show": true,
-  "list": [
-    "very",
-    "simple",
-    "and",
-    "cool"
-  ]
+  "list": ["very", "simple", "and", "cool"]
 }
 ```
 
@@ -47,13 +42,13 @@ Add attributes and templates to an html
 
 You can use these attributes:
 
-* `json-text`
-* `json-if`
-* `json-each`
-* `@attribute`
-* `.property`
-* `json-show`/`json-hide`
-* `json-with`
+- `json-text`
+- `json-if`
+- `json-each`
+- `@attribute`
+- `.property`
+- `json-show`/`json-hide`
+- `json-with`
 
 They are described below
 
@@ -65,8 +60,12 @@ Add the `json-text` attribute to change the textContent of the element.
 
 ```html
 <span json-text="name">This will contain the value of the `name` property</span>
-<span json-text="`My name is ${name}!`">Use JavaScript template tags to interpolate text</span>
-<span json-text="isSomething ? 'Yes' : 'No'">You can add any JavaScript expression to the attribute</span>
+<span json-text="`My name is ${name}!`"
+  >Use JavaScript template tags to interpolate text</span
+>
+<span json-text="isSomething ? 'Yes' : 'No'"
+  >You can add any JavaScript expression to the attribute</span
+>
 ```
 
 You can also use json templating directly in the text content. The following are equivalent to the above three.
@@ -84,6 +83,14 @@ You can use `json-ignore` to stop interpolation of text, when it would cause con
 
 ```html
 <span json-ignore>$123</span>
+```
+
+### `json-ignore`
+
+Ignore entire subtree from being processed. `json-ignore` also ignores any attribute after it, so you can stop processing in the middle of the attributes:
+
+```html
+<span json-ignore @data-test="this will be ignored"></span>
 ```
 
 ### `json-if`
@@ -116,9 +123,9 @@ Loop over a list using `json-each`, for example give the following json:
 
 ```html
 <ul>
-<template json-each="list">
-  <li>${value}</li>
-</template>
+  <template json-each="list">
+    <li>${value}</li>
+  </template>
 </ul>
 ```
 
@@ -126,9 +133,9 @@ You should use `json-key` to refer to a unique string value in each item if you 
 
 ```html
 <ul>
-<template json-each="list" json-key="id">
-  <li>${value}</li>
-</template>
+  <template json-each="list" json-key="id">
+    <li>${value}</li>
+  </template>
 </ul>
 ```
 
@@ -153,7 +160,9 @@ The property name needs to be converted from `camelCase` to `kebab-case` for it 
 This means you can do very dirty stuff:
 
 ```html
-<div .inner-h-t-m-l="html">This will be replaced with the contents of `html` using innerHTML!</div>
+<div .inner-h-t-m-l="html">
+  This will be replaced with the contents of `html` using innerHTML!
+</div>
 ```
 
 ### `json-show` and `json-hide`
@@ -163,7 +172,9 @@ Show or hide (using `display: none`) an element.
 ```html
 <div json-show="condition">This will only be visible if condition is true</div>
 <div json-hide="condition">This will only be visible if condition is false</div>
-<div json-show="condition" style="display: none">This will be hidden until condition becomes true</div>
+<div json-show="condition" style="display: none">
+  This will be hidden until condition becomes true
+</div>
 ```
 
 If you want it to be initially hidden you can use `style="display: none"` to hide it until json is applied.
@@ -181,22 +192,28 @@ Form fields are special, they will automatically get their value from the json u
 ```
 
 ```html
-  <input name="text">
-  <small>This will have the value `something` since `name="text"` and `"text": "something"`</small>
+<input name="text" />
+<small
+  >This will have the value `something` since `name="text"` and `"text":
+  "something"`</small
+>
 
-  <input name="checked" type="checkbox">
-  <small>This will be checked since `name="checked"` and `"checked": true`</small>
+<input name="checked" type="checkbox" />
+<small>This will be checked since `name="checked"` and `"checked": true`</small>
 
-  <input name="choice" value="first" type="radio"> First
-  <input name="choice" value="second" type="radio"> Second
-  <input name="choice" value="third" type="radio"> Third
-  <small>The second option will be selected because `name="choice"`, `value="second"` and `"choice": "second"`</small>
+<input name="choice" value="first" type="radio" /> First
+<input name="choice" value="second" type="radio" /> Second
+<input name="choice" value="third" type="radio" /> Third
+<small
+  >The second option will be selected because `name="choice"`, `value="second"`
+  and `"choice": "second"`</small
+>
 ```
 
 If you need to set the value to something other than the value directly you can use `.value="something"` to do so:
 
 ```html
-  <input name="hour" .value="new Date(dateTime).getHour()">
+<input name="hour" .value="new Date(dateTime).getHour()" />
 ```
 
 ### `json-with`
@@ -213,6 +230,9 @@ Go into an object using `json-with` to select the property to use:
 
 ### Properties
 
-* `$this`: The current object
-* `$parent`: The parent object, inside `json-with` or `json-each`
-* `$index`: The current index, inside `json-each`
+- `$this`: The current object
+- `$parent`: The parent object, inside `json-with` or `json-each`
+- `$index`: The current index, inside `json-each`
+- `$key`: The current key, inside `json-each`
+
+If you have nested `json-with` and/or `json-each` you can use `$parent` multiple times, and to get the `$index` and `$key` further up, for example `$parent.$index`.

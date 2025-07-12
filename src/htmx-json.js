@@ -58,71 +58,9 @@ const htmxJson = (function () {
     } else if (elm instanceof HTMLTemplateElement) {
       return handleEach(elm, $this, $ctx) ?? handleIf(elm, $this, $ctx) ?? elm;
     } else if (elm instanceof HTMLElement) {
-      getOrCreate(elm, "attributes", () => {
-        /** @type {Array<($this: any) => void>} */
-        const result = [];
-        for (const attr of elm.attributes) {
-          if (attr.name.startsWith("@")) {
-            const name = attr.name.substring(1);
-            const getter = createGetter(attr.value);
-            if (!getter) continue;
-            result.push(($this) => {
-              const value = getter($this, $ctx);
-              if (value === null) {
-                elm.removeAttribute(name);
-              } else {
-                elm.setAttribute(name, value);
-              }
-            });
-          } else if (attr.name.startsWith(".")) {
-            const getter = createGetter(attr.value);
-            if (!getter) continue;
-            const setter = createSetter(kebabChainToCamelChain(attr.name));
-            result.push(($this) => setter(elm, getter($this, $ctx)));
-          } else if (attr.name === "json-text") {
-            const getter = createGetter(attr.value);
-            if (!getter) continue;
-            result.push(($this) => {
-              elm.textContent = getter($this, $ctx);
-            });
-          } else if (attr.name === "json-show") {
-            const getter = createGetter(attr.value);
-            if (!getter) continue;
-            result.push(($this) => {
-              elm.style.display = getter($this, $ctx) ? "" : "none";
-            });
-          } else if (attr.name === "json-hide") {
-            const getter = createGetter(attr.value);
-            if (!getter) continue;
-            result.push(($this) => {
-              elm.style.display = getter($this, $ctx) ? "none" : "";
-            });
-          } else if (attr.name === "name") {
-            if (elm instanceof HTMLInputElement) {
-              if (elm.type === "checkbox") {
-                result.push(($this) => {
-                  if (attr.value in $this) {
-                    elm.checked = $this[attr.value];
-                  }
-                });
-              } else if (elm.type === "radio") {
-                result.push(($this) => {
-                  if (attr.value in $this) {
-                    elm.checked = $this[attr.value] === elm.value;
-                  }
-                });
-              } else {
-                result.push(($this) => {
-                  if (attr.value in $this) {
-                    elm.value = $this[attr.value];
-                  }
-                });
-              }
-            }
-          }
-        }
-        return result;
-      }).forEach((attr) => attr($this));
+      getOrCreate(elm, "attributes", createAttributeHandler).forEach((attr) =>
+        attr($this, $ctx)
+      );
 
       if (elm.hasAttribute("json-ignore")) {
         return elm;
@@ -144,6 +82,79 @@ const htmxJson = (function () {
   }
 
   /**
+   * @param {HTMLElement} elm
+   * @returns {Array<($this: any, $ctx: Context) => void>}
+   */
+  function createAttributeHandler(elm) {
+    /** @type {Array<($this: any, $ctx: Context) => void>} */
+    const result = [];
+    for (const attr of elm.attributes) {
+      if (attr.name.startsWith("@")) {
+        const name = attr.name.substring(1);
+        const getter = createGetter(attr.value);
+        if (!getter) continue;
+        result.push(($this, $ctx) => {
+          const value = getter($this, $ctx);
+          if (value === null) {
+            elm.removeAttribute(name);
+          } else {
+            elm.setAttribute(name, value);
+          }
+        });
+      } else if (attr.name.startsWith(".")) {
+        const getter = createGetter(attr.value);
+        if (!getter) continue;
+        const setter = createSetter(kebabChainToCamelChain(attr.name));
+        result.push(($this, $ctx) => setter(elm, getter($this, $ctx)));
+      } else if (attr.name === "json-ignore") {
+        // stop processing of the array
+        break;
+      } else if (attr.name === "json-text") {
+        const getter = createGetter(attr.value);
+        if (!getter) continue;
+        result.push(($this, $ctx) => {
+          elm.textContent = getter($this, $ctx);
+        });
+      } else if (attr.name === "json-show") {
+        const getter = createGetter(attr.value);
+        if (!getter) continue;
+        result.push(($this, $ctx) => {
+          elm.style.display = getter($this, $ctx) ? "" : "none";
+        });
+      } else if (attr.name === "json-hide") {
+        const getter = createGetter(attr.value);
+        if (!getter) continue;
+        result.push(($this, $ctx) => {
+          elm.style.display = getter($this, $ctx) ? "none" : "";
+        });
+      } else if (attr.name === "name") {
+        if (elm instanceof HTMLInputElement) {
+          if (elm.type === "checkbox") {
+            result.push(($this) => {
+              if (attr.value in $this) {
+                elm.checked = $this[attr.value];
+              }
+            });
+          } else if (elm.type === "radio") {
+            result.push(($this) => {
+              if (attr.value in $this) {
+                elm.checked = $this[attr.value] === elm.value;
+              }
+            });
+          } else {
+            result.push(($this) => {
+              if (attr.value in $this) {
+                elm.value = $this[attr.value];
+              }
+            });
+          }
+        }
+      }
+    }
+    return result;
+  }
+
+  /**
    * @param {HTMLTemplateElement} elm
    * @param {any} $this
    * @param {Context} $ctx
@@ -151,16 +162,7 @@ const htmxJson = (function () {
   function handleEach(elm, $this, $ctx) {
     const eachGetter = getGetter(elm, "json-each");
     if (!eachGetter) return null;
-    const end = getOrCreate(
-      elm,
-      "each-end",
-      () =>
-        findComment(elm, "/json-each") ??
-        elm.parentNode?.insertBefore(
-          document.createComment("/json-each"),
-          elm.nextSibling
-        )
-    );
+    const end = getOrCreate(elm, "/json-each", findOrCreateComment);
     if (!end) return elm;
 
     let existingComment = elm.nextSibling;
@@ -306,25 +308,11 @@ const htmxJson = (function () {
   function handleIf(elm, $this, $ctx) {
     const ifGetter = getGetter(elm, "json-if");
     if (!ifGetter) return null;
-    const otherwise = getOrCreate(elm, "else", () =>
-      elm.nextElementSibling instanceof HTMLTemplateElement &&
-      elm.nextElementSibling.hasAttribute("json-else")
-        ? elm.nextElementSibling
-        : undefined
-    );
+    const otherwise = getOrCreate(elm, "json-else", findTemplate);
 
     const elmOrOtherwise = otherwise ?? elm;
 
-    const end = getOrCreate(
-      elm,
-      "if-end",
-      () =>
-        findComment(elm, "/json-if") ??
-        elm.parentNode?.insertBefore(
-          document.createComment("/json-if"),
-          elmOrOtherwise.nextSibling
-        )
-    );
+    const end = getOrCreate(elmOrOtherwise, "/json-if", findOrCreateComment);
     if (!end) return elmOrOtherwise;
 
     if (ifGetter($this, $ctx)) {
@@ -366,6 +354,28 @@ const htmxJson = (function () {
       }
     }
     return end;
+  }
+
+  /**
+   * @param {ChildNode} elm
+   * @param {string} key
+   */
+  function findOrCreateComment(elm, key) {
+    return (
+      findComment(elm, key) ??
+      elm.parentNode?.insertBefore(document.createComment(key), elm.nextSibling)
+    );
+  }
+
+  /**
+   * @param {HTMLTemplateElement} elm
+   * @param {string} key
+   */
+  function findTemplate(elm, key) {
+    return elm.nextElementSibling instanceof HTMLTemplateElement &&
+      elm.nextElementSibling.hasAttribute(key)
+      ? elm.nextElementSibling
+      : undefined;
   }
 
   /**
@@ -429,16 +439,6 @@ const htmxJson = (function () {
     );
   }
 
-  /**
-   * @param {HTMLElement} elm
-   * @param {string} name
-   */
-  function getSetter(elm, name) {
-    return getOrCreate(elm, `setter-${name}`, () =>
-      createSetter(kebabChainToCamelChain(name))
-    );
-  }
-
   const jsonMap = Symbol();
 
   /**
@@ -462,16 +462,17 @@ const htmxJson = (function () {
 
   /**
    * @template T
-   * @param {Node} elm
+   * @template {Node} N
+   * @param {N} elm
    * @param {string} key
-   * @param {() => T} factory
+   * @param {(elm: N, key: string) => T} factory
    * @returns {T}
    */
   function getOrCreate(elm, key, factory) {
     const map = (elm[jsonMap] ??= new Map());
     let value = map.get(key);
     if (value === undefined) {
-      value = factory();
+      value = factory(elm, key);
       map.set(key, value);
     }
     return value;
