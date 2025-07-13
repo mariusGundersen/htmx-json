@@ -5,12 +5,13 @@
   "unpkg": "dist/htmx-json.min.js",
   "scripts": {
     "test": "karma start",
-    "prepare": "node ./scripts/build.mjs"
+    "preversion": "karma run",
+    "version": "node ./scripts/build.mjs && git add -A"
   },
   "keywords": [],
-  "author": "",
+  "author": "Marius Gundersen",
   "license": "ISC",
-  "description": "",
+  "description": "Support for json response in htmx",
   "dependencies": {
     "htmx.org": "^2.0.6"
   },
@@ -26,5 +27,9 @@
   "files": [
     "readme.md",
     "dist/*.js"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mariusGundersen/htmx-json"
+  }
 }
