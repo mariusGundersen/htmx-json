@@ -537,3 +537,5 @@ const htmxJson = (function () {
     swap,
   };
 })();
+
+export default htmxJson;

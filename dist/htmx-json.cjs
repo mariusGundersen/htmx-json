@@ -537,3 +537,4 @@ const htmxJson = (function () {
     swap,
   };
 })();
+module.exports htmxJson;

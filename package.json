@@ -1,6 +1,6 @@
 {
   "name": "htmx-json",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "main": "dist/htmx-json.min.js",
   "unpkg": "dist/htmx-json.min.js",
   "scripts": {
