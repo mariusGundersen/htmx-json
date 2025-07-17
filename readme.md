@@ -139,6 +139,8 @@ You should use `json-key` to refer to a unique string value in each item if you 
 </ul>
 ```
 
+You can also supply an object, where the entries will be iterated over. Note that `json-key` is ignored, and you will experience weird things if the keys are integer values.
+
 ### `@attributes`
 
 Set any attribute using `@attribute="value"`:
