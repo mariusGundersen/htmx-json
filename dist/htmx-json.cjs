@@ -16,7 +16,7 @@ const htmxJson = (function () {
         if (swapStyle === "json") {
           const json = JSON.parse(fragment.textContent);
 
-          swap(target, json);
+          swap(target, createContext(json));
 
           return [target];
         }
@@ -25,55 +25,82 @@ const htmxJson = (function () {
   }
 
   /**
+   * @param {any} $this
+   * @param {Context} [$ctx]
+   * @param {number} [$index]
+   * @param {string} [$key]
+   * @returns {Context}
+   */
+  function createContext($this, $ctx, $index, $key) {
+    if ($ctx) {
+      return {
+        $this,
+        $parent: { ...$ctx, __proto__: $ctx.$this },
+        $index,
+        $key,
+      };
+    } else {
+      return {
+        $this,
+        $parent: undefined,
+        $index,
+        $key,
+      };
+    }
+  }
+
+  /**
    * @typedef {{
+   *   $this: any,
    *   $parent: any | undefined,
    *   $index: number | undefined,
    *   $key: string | undefined
    * }} Context
-   * @typedef {($this: any, $ctx: Context) => any} Getter
+   *
+   * @typedef {($ctx: Context) => any} Getter
    */
 
   /**
    *
    * @param {Node} elm
-   * @param {any} $this
-   * @param {Context} [$ctx]
-   * @returns {Node}
+   * @param {Context} $ctx
+   * @returns {Node | null}
    */
-  function swap(
-    elm,
-    $this,
-    $ctx = { $parent: undefined, $index: undefined, $key: undefined }
-  ) {
-    if (elm instanceof DocumentFragment) {
-      return recurse(elm, $this, $ctx);
-    } else if (elm instanceof Text) {
-      const textGetter = getOrCreate(elm, "text", () =>
-        createGetter("`" + elm.textContent + "`")
-      );
-      if (textGetter) {
-        elm.textContent = textGetter($this, $ctx);
-      }
+  function swap(elm, $ctx) {
+    if (elm instanceof Text) {
+      const textGetter = getOrCreate(elm, "text", createTextGetter);
+      if (!textGetter) return null;
+      elm.textContent = textGetter($ctx);
       return elm;
     } else if (elm instanceof HTMLTemplateElement) {
-      return handleEach(elm, $this, $ctx) ?? handleIf(elm, $this, $ctx) ?? elm;
+      return handleEach(elm, $ctx) ?? handleIf(elm, $ctx) ?? elm;
     } else if (elm instanceof HTMLElement) {
-      getOrCreate(elm, "attributes", createAttributeHandler).forEach((attr) =>
-        attr($this, $ctx)
-      );
+      /** @type {false | Context} */
+      let nextCtx = $ctx;
+      const attrs = getOrCreate(elm, "attributes", createAttributeHandler);
+      for (const attr of attrs) {
+        if (!nextCtx) break;
+        nextCtx = attr(nextCtx);
+      }
 
-      if (elm.hasAttribute("json-ignore")) {
-        return elm;
+      if (!nextCtx) {
+        // there is a json-ignore in the attribute list
+        // if that's the only attr then we can ignore this element completely
+        return attrs.length === 1 ? null : elm;
       } else {
-        const getter = getGetter(elm, "json-with");
-        if (getter) {
-          return recurse(elm, getter($this, $ctx), {
-            $parent: { ...$ctx, __proto__: $this },
-            $index: undefined,
-            $key: undefined,
-          });
+        let allIgnored = true;
+        let child = elm.firstChild;
+        while (child) {
+          const result = swap(child, nextCtx);
+          allIgnored &&= result === null;
+          child = (result ?? child).nextSibling;
+        }
+
+        if (allIgnored && attrs.length === 0) {
+          set(elm, "attributes", [() => false]);
+          return null;
         } else {
-          return recurse(elm, $this, $ctx);
+          return elm;
         }
       }
     } else {
@@ -82,70 +109,97 @@ const htmxJson = (function () {
   }
 
   /**
+   * @param {Text} elm
+   * @returns {Getter | null}
+   */
+  function createTextGetter(elm) {
+    return elm.textContent?.includes("${")
+      ? createGetter("`" + elm.textContent + "`")
+      : null;
+  }
+
+  /**
    * @param {HTMLElement} elm
-   * @returns {Array<($this: any, $ctx: Context) => void>}
+   * @returns {Array<($ctx: Context) => (Context | false)>}
    */
   function createAttributeHandler(elm) {
-    /** @type {Array<($this: any, $ctx: Context) => void>} */
+    /** @type {Array<($ctx: Context) => (Context | false)>} */
     const result = [];
     for (const attr of elm.attributes) {
       if (attr.name.startsWith("@")) {
         const name = attr.name.substring(1);
         const getter = createGetter(attr.value);
         if (!getter) continue;
-        result.push(($this, $ctx) => {
-          const value = getter($this, $ctx);
+        result.push(($ctx) => {
+          const value = getter($ctx);
           if (value === null) {
             elm.removeAttribute(name);
           } else {
             elm.setAttribute(name, value);
           }
+          return $ctx;
         });
       } else if (attr.name.startsWith(".")) {
         const getter = createGetter(attr.value);
         if (!getter) continue;
         const setter = createSetter(kebabChainToCamelChain(attr.name));
-        result.push(($this, $ctx) => setter(elm, getter($this, $ctx)));
+        result.push(($ctx) => {
+          setter(elm, getter($ctx));
+          return $ctx;
+        });
       } else if (attr.name === "json-ignore") {
+        result.push(($ctx) => false);
         // stop processing of the array
         break;
+      } else if (attr.name === "json-with") {
+        const getter = createGetter(attr.value);
+        if (!getter) continue;
+        result.push(($ctx) => {
+          return createContext(getter($ctx), $ctx);
+        });
       } else if (attr.name === "json-text") {
         const getter = createGetter(attr.value);
         if (!getter) continue;
-        result.push(($this, $ctx) => {
-          elm.textContent = getter($this, $ctx);
+        result.push(($ctx) => {
+          elm.textContent = getter($ctx);
+          return $ctx;
         });
       } else if (attr.name === "json-show") {
         const getter = createGetter(attr.value);
         if (!getter) continue;
-        result.push(($this, $ctx) => {
-          elm.style.display = getter($this, $ctx) ? "" : "none";
+        result.push(($ctx) => {
+          elm.style.display = getter($ctx) ? "" : "none";
+          return $ctx;
         });
       } else if (attr.name === "json-hide") {
         const getter = createGetter(attr.value);
         if (!getter) continue;
-        result.push(($this, $ctx) => {
-          elm.style.display = getter($this, $ctx) ? "none" : "";
+        result.push(($ctx) => {
+          elm.style.display = getter($ctx) ? "none" : "";
+          return $ctx;
         });
       } else if (attr.name === "name") {
         if (elm instanceof HTMLInputElement) {
           if (elm.type === "checkbox") {
-            result.push(($this) => {
-              if (attr.value in $this) {
-                elm.checked = $this[attr.value];
+            result.push(($ctx) => {
+              if (attr.value in $ctx.$this) {
+                elm.checked = $ctx.$this[attr.value];
               }
+              return $ctx;
             });
           } else if (elm.type === "radio") {
-            result.push(($this) => {
-              if (attr.value in $this) {
-                elm.checked = $this[attr.value] === elm.value;
+            result.push(($ctx) => {
+              if (attr.value in $ctx.$this) {
+                elm.checked = $ctx.$this[attr.value] === elm.value;
               }
+              return $ctx;
             });
           } else {
-            result.push(($this) => {
-              if (attr.value in $this) {
-                elm.value = $this[attr.value];
+            result.push(($ctx) => {
+              if (attr.value in $ctx.$this) {
+                elm.value = $ctx.$this[attr.value];
               }
+              return $ctx;
             });
           }
         }
@@ -156,10 +210,9 @@ const htmxJson = (function () {
 
   /**
    * @param {HTMLTemplateElement} elm
-   * @param {any} $this
    * @param {Context} $ctx
    */
-  function handleEach(elm, $this, $ctx) {
+  function handleEach(elm, $ctx) {
     const eachGetter = getGetter(elm, "json-each");
     if (!eachGetter) return null;
     const end = getOrCreate(elm, "/json-each", findOrCreateComment);
@@ -167,7 +220,7 @@ const htmxJson = (function () {
 
     let existingComment = elm.nextSibling;
 
-    const items = eachGetter($this, $ctx);
+    const items = eachGetter($ctx);
 
     const keyGetter = getGetter(elm, "json-key");
 
@@ -177,7 +230,9 @@ const htmxJson = (function () {
 
     for (let $index = 0; $index < items.length; $index++) {
       const item = items[$index];
-      const newKey = keyGetter ? keyGetter(item, $ctx) : $index.toString();
+      const newKey = keyGetter
+        ? keyGetter(createContext(item))
+        : $index.toString();
 
       if (existingComment instanceof Comment && existingComment !== end) {
         const oldKey = existingComment.data;
@@ -189,11 +244,11 @@ const htmxJson = (function () {
           const child = existingComment.nextSibling;
           existingComment.data = newKey;
           existingComment = findComment(existingComment) ?? end;
-          swapUntil(child, existingComment, item, {
-            $parent: { ...$ctx, __proto__: $this },
-            $index,
-            $key: newKey,
-          });
+          swapUntil(
+            child,
+            existingComment,
+            createContext(item, $ctx, $index, newKey)
+          );
         } else {
           // Different keys
           // can oldKey be found somehere later in the existing items?
@@ -211,7 +266,7 @@ const htmxJson = (function () {
             i++
           ) {
             oldKeyExistsInList =
-              oldKey === (keyGetter ? keyGetter(items[i], $ctx) : i);
+              oldKey === (keyGetter ? keyGetter(createContext(items[i])) : i);
           }
           if (oldKeyExistsInList) {
             const movingComment = findComment(existingComment, newKey);
@@ -235,11 +290,11 @@ const htmxJson = (function () {
                 );
               }
 
-              swapUntil(movingComment, existingComment, item, {
-                $parent: { ...$ctx, __proto__: $this },
-                $index,
-                $key: newKey,
-              });
+              swapUntil(
+                movingComment,
+                existingComment,
+                createContext(item, $ctx, $index, newKey)
+              );
             } else {
               // Insert new item
               const clone = elm.content.cloneNode(true);
@@ -247,11 +302,11 @@ const htmxJson = (function () {
 
               elm.parentNode?.insertBefore(comment, existingComment);
               elm.parentNode?.insertBefore(clone, existingComment);
-              swapUntil(comment.nextSibling, existingComment, item, {
-                $parent: { ...$ctx, __proto__: $this },
-                $index,
-                $key: newKey,
-              });
+              swapUntil(
+                comment.nextSibling,
+                existingComment,
+                createContext(item, $ctx, $index, newKey)
+              );
             }
           } else {
             // Remove current item
@@ -279,11 +334,11 @@ const htmxJson = (function () {
 
         elm.parentNode?.insertBefore(comment, end);
         elm.parentNode?.insertBefore(clone, end);
-        swapUntil(comment.nextSibling, end, item, {
-          $parent: { ...$ctx, __proto__: $this },
-          $index,
-          $key: newKey,
-        });
+        swapUntil(
+          comment.nextSibling,
+          end,
+          createContext(item, $ctx, $index, newKey)
+        );
       } else {
         throw new Error("This should not have happened");
       }
@@ -302,10 +357,9 @@ const htmxJson = (function () {
 
   /**
    * @param {HTMLTemplateElement} elm
-   * @param {any} $this
    * @param {Context} $ctx
    */
-  function handleIf(elm, $this, $ctx) {
+  function handleIf(elm, $ctx) {
     const ifGetter = getGetter(elm, "json-if");
     if (!ifGetter) return null;
     const otherwise = getOrCreate(elm, "json-else", findTemplate);
@@ -315,7 +369,7 @@ const htmxJson = (function () {
     const end = getOrCreate(elmOrOtherwise, "/json-if", findOrCreateComment);
     if (!end) return elmOrOtherwise;
 
-    if (ifGetter($this, $ctx)) {
+    if (ifGetter($ctx)) {
       if (get(elm, "if") !== true) {
         set(elm, "if", true);
         while (
@@ -326,7 +380,7 @@ const htmxJson = (function () {
         }
         elm.parentNode?.insertBefore(elm.content.cloneNode(true), end);
       }
-      swapUntil(elmOrOtherwise.nextSibling, end, $this, $ctx);
+      swapUntil(elmOrOtherwise.nextSibling, end, $ctx);
     } else if (otherwise) {
       if (get(elm, "if") !== false) {
         set(elm, "if", false);
@@ -341,7 +395,7 @@ const htmxJson = (function () {
           end
         );
       }
-      swapUntil(elmOrOtherwise.nextSibling, end, $this, $ctx);
+      swapUntil(elmOrOtherwise.nextSibling, end, $ctx);
     } else {
       if (get(elm, "if") !== false) {
         set(elm, "if", false);
@@ -403,29 +457,14 @@ const htmxJson = (function () {
   /**
    * @param {Node | null} start
    * @param {any} end
-   * @param {any} $this
    * @param {Context} $ctx
-   */
-  function swapUntil(start, end, $this, $ctx) {
-    while (start && start !== end) {
-      start = swap(start, $this, $ctx).nextSibling;
-    }
-    return start;
-  }
-
-  /**
    *
-   * @param {Node} parent
-   * @param {any} $this
-   * @param {Context} $ctx
-   * @returns {Node}
+   * @returns {void}
    */
-  function recurse(parent, $this, $ctx) {
-    let elm = parent.firstChild;
-    while (elm) {
-      elm = swap(elm, $this, $ctx).nextSibling;
+  function swapUntil(start, end, $ctx) {
+    while (start && start !== end) {
+      start = (swap(start, $ctx) ?? start).nextSibling;
     }
-    return parent;
   }
 
   /**
@@ -481,10 +520,12 @@ const htmxJson = (function () {
   /**
    *
    * @param {String} name
-   * @returns {Function}
+   * @returns {(obj: any, value: any) => void}
    */
   function createSetter(name) {
-    return new Function("obj", "value", `obj${name} = value;`);
+    return /** @type {(obj: any, value: any) => void} */ (
+      new Function("obj", "value", `obj${name} = value;`)
+    );
   }
 
   /**
@@ -494,11 +535,10 @@ const htmxJson = (function () {
    */
   function createGetter(value) {
     if (!value) return null;
-    // @ts-ignore
-    return new Function(
-      "$this",
-      "{$parent, $index, $key}",
-      `
+    return /** @type {Getter} */ (
+      new Function(
+        "{$this, $parent, $index, $key}",
+        `
         try {
           with ($this){
             return (${value});
@@ -510,6 +550,7 @@ const htmxJson = (function () {
           throw e;
         }
       `
+      )
     );
   }
 
@@ -534,7 +575,15 @@ const htmxJson = (function () {
   }
 
   return {
-    swap,
+    /**
+     * @param {Node} elm
+     * @param {any} data
+     *
+     * @returns {void}
+     */
+    swap(elm, data) {
+      swap(elm, createContext(data));
+    },
   };
 })();
 module.exports htmxJson;
