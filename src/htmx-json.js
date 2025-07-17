@@ -70,9 +70,7 @@ const htmxJson = (function () {
     if (elm instanceof DocumentFragment) {
       return recurse(elm, $ctx);
     } else if (elm instanceof Text) {
-      const textGetter = getOrCreate(elm, "text", () =>
-        createGetter("`" + elm.textContent + "`")
-      );
+      const textGetter = getOrCreate(elm, "text", createTextGetter);
       if (textGetter) {
         elm.textContent = textGetter($ctx);
       }
@@ -97,6 +95,16 @@ const htmxJson = (function () {
     } else {
       return elm;
     }
+  }
+
+  /**
+   * @param {Text} elm
+   * @returns {Getter | null}
+   */
+  function createTextGetter(elm) {
+    return elm.textContent?.includes("${")
+      ? createGetter("`" + elm.textContent + "`")
+      : null;
   }
 
   /**
