@@ -211,18 +211,7 @@ const htmxJson = (function () {
 
     let existingComment = elm.nextSibling;
 
-    const items = eachGetter($ctx);
-
-    const keyGetter = getGetter(elm, "json-key");
-
-    const keyToItem = new Map(
-      Array.isArray(items)
-        ? items.map((item, index) => [
-            keyGetter ? keyGetter(createContext(item)) : index.toString(),
-            item,
-          ])
-        : Object.entries(items)
-    );
+    const keyToItem = getItemsMap(eachGetter, $ctx, elm);
 
     const entries = Array.from(keyToItem.entries());
 
@@ -340,6 +329,40 @@ const htmxJson = (function () {
     }
 
     return end;
+  }
+
+  /**
+   * @param {Getter} eachGetter
+   * @param {Context} $ctx
+   * @param {HTMLElement} elm
+   */
+  function getItemsMap(eachGetter, $ctx, elm) {
+    const items = eachGetter($ctx);
+
+    const keyGetter = getGetter(elm, "json-key");
+
+    if (!items) {
+      return new Map();
+    } else if (Array.isArray(items)) {
+      return new Map(
+        items.map((item, index) => [
+          keyGetter ? keyGetter(createContext(item)) : index.toString(),
+          item,
+        ])
+      );
+    } else {
+      if (keyGetter)
+        console.warn("json-key is not used when json-each is an object");
+      return new Map(
+        Object.entries(items).map(([key, value]) => {
+          if (Number(key) >= 0)
+            console.warn(
+              "Objects with integer keys will be iterated over in unexpected order!"
+            );
+          return [key, value];
+        })
+      );
+    }
   }
 
   /**
