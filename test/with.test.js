@@ -34,4 +34,14 @@ describe("with", () => {
     });
     expect(div.innerHTML).toBe(`<div json-with="value">test: 4</div>`);
   });
+
+  it("should apply to subsequent attributes", () => {
+    div.innerHTML = `<div json-with="obj" .text-content="value"></div>`;
+    htmxJson.swap(div, {
+      obj: { value: 4 },
+    });
+    expect(div.innerHTML).toBe(
+      `<div json-with="obj" .text-content="value">4</div>`
+    );
+  });
 });

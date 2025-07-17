@@ -78,19 +78,21 @@ const htmxJson = (function () {
     } else if (elm instanceof HTMLTemplateElement) {
       return handleEach(elm, $ctx) ?? handleIf(elm, $ctx) ?? elm;
     } else if (elm instanceof HTMLElement) {
-      getOrCreate(elm, "attributes", createAttributeHandler).forEach((attr) =>
-        attr($ctx)
-      );
+      /** @type {null | Context} */
+      let nextCtx = $ctx;
+      for (const attr of getOrCreate(
+        elm,
+        "attributes",
+        createAttributeHandler
+      )) {
+        if (!nextCtx) break;
+        nextCtx = attr(nextCtx);
+      }
 
-      if (elm.hasAttribute("json-ignore")) {
+      if (!nextCtx) {
         return elm;
       } else {
-        const getter = getGetter(elm, "json-with");
-        if (getter) {
-          return recurse(elm, createContext(getter($ctx), $ctx));
-        } else {
-          return recurse(elm, $ctx);
-        }
+        return recurse(elm, nextCtx);
       }
     } else {
       return elm;
@@ -109,10 +111,10 @@ const htmxJson = (function () {
 
   /**
    * @param {HTMLElement} elm
-   * @returns {Array<($ctx: Context) => void>}
+   * @returns {Array<($ctx: Context) => (Context | null)>}
    */
   function createAttributeHandler(elm) {
-    /** @type {Array<($ctx: Context) => void>} */
+    /** @type {Array<($ctx: Context) => (Context | null)>} */
     const result = [];
     for (const attr of elm.attributes) {
       if (attr.name.startsWith("@")) {
@@ -126,6 +128,7 @@ const htmxJson = (function () {
           } else {
             elm.setAttribute(name, value);
           }
+          return $ctx;
         });
       } else if (attr.name.startsWith(".")) {
         const getter = createGetter(attr.value);
@@ -133,45 +136,58 @@ const htmxJson = (function () {
         const setter = createSetter(kebabChainToCamelChain(attr.name));
         result.push(($ctx) => setter(elm, getter($ctx)));
       } else if (attr.name === "json-ignore") {
+        result.push(($ctx) => null);
         // stop processing of the array
         break;
+      } else if (attr.name === "json-with") {
+        const getter = createGetter(attr.value);
+        if (!getter) continue;
+        result.push(($ctx) => {
+          return createContext(getter($ctx), $ctx);
+        });
       } else if (attr.name === "json-text") {
         const getter = createGetter(attr.value);
         if (!getter) continue;
         result.push(($ctx) => {
           elm.textContent = getter($ctx);
+          return $ctx;
         });
       } else if (attr.name === "json-show") {
         const getter = createGetter(attr.value);
         if (!getter) continue;
         result.push(($ctx) => {
           elm.style.display = getter($ctx) ? "" : "none";
+          return $ctx;
         });
       } else if (attr.name === "json-hide") {
         const getter = createGetter(attr.value);
         if (!getter) continue;
         result.push(($ctx) => {
           elm.style.display = getter($ctx) ? "none" : "";
+          return $ctx;
         });
       } else if (attr.name === "name") {
         if (elm instanceof HTMLInputElement) {
           if (elm.type === "checkbox") {
-            result.push(($this) => {
-              if (attr.value in $this) {
-                elm.checked = $this[attr.value];
+            result.push(($ctx) => {
+              if (attr.value in $ctx.$this) {
+                elm.checked = $ctx.$this[attr.value];
               }
+              return $ctx;
             });
           } else if (elm.type === "radio") {
-            result.push(($this) => {
-              if (attr.value in $this) {
-                elm.checked = $this[attr.value] === elm.value;
+            result.push(($ctx) => {
+              if (attr.value in $ctx.$this) {
+                elm.checked = $ctx.$this[attr.value] === elm.value;
               }
+              return $ctx;
             });
           } else {
-            result.push(($this) => {
-              if (attr.value in $this) {
-                elm.value = $this[attr.value];
+            result.push(($ctx) => {
+              if (attr.value in $ctx.$this) {
+                elm.value = $ctx.$this[attr.value];
               }
+              return $ctx;
             });
           }
         }
