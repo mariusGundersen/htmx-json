@@ -32,21 +32,12 @@ const htmxJson = (function () {
    * @returns {Context}
    */
   function createContext($this, $ctx, $index, $key) {
-    if ($ctx) {
-      return {
-        $this,
-        $parent: { ...$ctx, __proto__: $ctx.$this },
-        $index,
-        $key,
-      };
-    } else {
-      return {
-        $this,
-        $parent: undefined,
-        $index,
-        $key,
-      };
-    }
+    return {
+      $this,
+      $parent: $ctx && { ...$ctx, __proto__: $ctx.$this },
+      $index,
+      $key,
+    };
   }
 
   /**
@@ -224,15 +215,19 @@ const htmxJson = (function () {
 
     const keyGetter = getGetter(elm, "json-key");
 
-    if (!Array.isArray(items)) {
-      throw new Error("for-each only works with arrays");
-    }
+    const keyToItem = new Map(
+      Array.isArray(items)
+        ? items.map((item, index) => [
+            keyGetter ? keyGetter(createContext(item)) : index.toString(),
+            item,
+          ])
+        : Object.entries(items)
+    );
 
-    for (let $index = 0; $index < items.length; $index++) {
-      const item = items[$index];
-      const newKey = keyGetter
-        ? keyGetter(createContext(item))
-        : $index.toString();
+    const entries = Array.from(keyToItem.entries());
+
+    for (let $index = 0; $index < entries.length; $index++) {
+      const [newKey, item] = entries[$index];
 
       if (existingComment instanceof Comment && existingComment !== end) {
         const oldKey = existingComment.data;
@@ -259,15 +254,7 @@ const htmxJson = (function () {
           // else
           //   remove existing value
 
-          let oldKeyExistsInList = false;
-          for (
-            let i = $index;
-            oldKeyExistsInList === false && i < items.length;
-            i++
-          ) {
-            oldKeyExistsInList =
-              oldKey === (keyGetter ? keyGetter(createContext(items[i])) : i);
-          }
+          let oldKeyExistsInList = keyToItem.has(oldKey);
           if (oldKeyExistsInList) {
             const movingComment = findComment(existingComment, newKey);
             if (movingComment) {
