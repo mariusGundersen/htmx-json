@@ -32,21 +32,12 @@ const htmxJson = (function () {
    * @returns {Context}
    */
   function createContext($this, $ctx, $index, $key) {
-    if ($ctx) {
-      return {
-        $this,
-        $parent: { ...$ctx, __proto__: $ctx.$this },
-        $index,
-        $key,
-      };
-    } else {
-      return {
-        $this,
-        $parent: undefined,
-        $index,
-        $key,
-      };
-    }
+    return {
+      $this,
+      $parent: $ctx && { ...$ctx, __proto__: $ctx.$this },
+      $index,
+      $key,
+    };
   }
 
   /**
@@ -220,19 +211,12 @@ const htmxJson = (function () {
 
     let existingComment = elm.nextSibling;
 
-    const items = eachGetter($ctx);
+    const keyToItem = getItemsMap(eachGetter, $ctx, elm);
 
-    const keyGetter = getGetter(elm, "json-key");
+    const entries = Array.from(keyToItem.entries());
 
-    if (!Array.isArray(items)) {
-      throw new Error("for-each only works with arrays");
-    }
-
-    for (let $index = 0; $index < items.length; $index++) {
-      const item = items[$index];
-      const newKey = keyGetter
-        ? keyGetter(createContext(item))
-        : $index.toString();
+    for (let $index = 0; $index < entries.length; $index++) {
+      const [newKey, item] = entries[$index];
 
       if (existingComment instanceof Comment && existingComment !== end) {
         const oldKey = existingComment.data;
@@ -259,15 +243,7 @@ const htmxJson = (function () {
           // else
           //   remove existing value
 
-          let oldKeyExistsInList = false;
-          for (
-            let i = $index;
-            oldKeyExistsInList === false && i < items.length;
-            i++
-          ) {
-            oldKeyExistsInList =
-              oldKey === (keyGetter ? keyGetter(createContext(items[i])) : i);
-          }
+          let oldKeyExistsInList = keyToItem.has(oldKey);
           if (oldKeyExistsInList) {
             const movingComment = findComment(existingComment, newKey);
             if (movingComment) {
@@ -353,6 +329,40 @@ const htmxJson = (function () {
     }
 
     return end;
+  }
+
+  /**
+   * @param {Getter} eachGetter
+   * @param {Context} $ctx
+   * @param {HTMLElement} elm
+   */
+  function getItemsMap(eachGetter, $ctx, elm) {
+    const items = eachGetter($ctx);
+
+    const keyGetter = getGetter(elm, "json-key");
+
+    if (!items) {
+      return new Map();
+    } else if (Array.isArray(items)) {
+      return new Map(
+        items.map((item, index) => [
+          keyGetter ? keyGetter(createContext(item)) : index.toString(),
+          item,
+        ])
+      );
+    } else {
+      if (keyGetter)
+        console.warn("json-key is not used when json-each is an object");
+      return new Map(
+        Object.entries(items).map(([key, value]) => {
+          if (Number(key) >= 0)
+            console.warn(
+              "Objects with integer keys will be iterated over in unexpected order!"
+            );
+          return [key, value];
+        })
+      );
+    }
   }
 
   /**
