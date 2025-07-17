@@ -1,5 +1,9 @@
 describe("text", () => {
-  const div = document.createElement("div");
+  let div = document.createElement("div");
+
+  beforeEach(() => {
+    div = document.createElement("div");
+  });
 
   it("should replace inline", () => {
     div.innerHTML = `<span>\${value}</span>`;

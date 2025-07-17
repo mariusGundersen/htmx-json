@@ -64,35 +64,44 @@ const htmxJson = (function () {
    *
    * @param {Node} elm
    * @param {Context} $ctx
-   * @returns {Node}
+   * @returns {Node | null}
    */
   function swap(elm, $ctx) {
-    if (elm instanceof DocumentFragment) {
-      return recurse(elm, $ctx);
-    } else if (elm instanceof Text) {
+    if (elm instanceof Text) {
       const textGetter = getOrCreate(elm, "text", createTextGetter);
-      if (textGetter) {
-        elm.textContent = textGetter($ctx);
-      }
+      if (!textGetter) return null;
+      elm.textContent = textGetter($ctx);
       return elm;
     } else if (elm instanceof HTMLTemplateElement) {
       return handleEach(elm, $ctx) ?? handleIf(elm, $ctx) ?? elm;
     } else if (elm instanceof HTMLElement) {
-      /** @type {null | Context} */
+      /** @type {false | Context} */
       let nextCtx = $ctx;
-      for (const attr of getOrCreate(
-        elm,
-        "attributes",
-        createAttributeHandler
-      )) {
+      const attrs = getOrCreate(elm, "attributes", createAttributeHandler);
+      for (const attr of attrs) {
         if (!nextCtx) break;
         nextCtx = attr(nextCtx);
       }
 
       if (!nextCtx) {
-        return elm;
+        // there is a json-ignore in the attribute list
+        // if that's the only attr then we can ignore this element completely
+        return attrs.length === 1 ? null : elm;
       } else {
-        return recurse(elm, nextCtx);
+        let allIgnored = true;
+        let child = elm.firstChild;
+        while (child) {
+          const result = swap(child, nextCtx);
+          allIgnored &&= result === null;
+          child = (result ?? child).nextSibling;
+        }
+
+        if (allIgnored && attrs.length === 0) {
+          set(elm, "attributes", [() => false]);
+          return null;
+        } else {
+          return elm;
+        }
       }
     } else {
       return elm;
@@ -111,10 +120,10 @@ const htmxJson = (function () {
 
   /**
    * @param {HTMLElement} elm
-   * @returns {Array<($ctx: Context) => (Context | null)>}
+   * @returns {Array<($ctx: Context) => (Context | false)>}
    */
   function createAttributeHandler(elm) {
-    /** @type {Array<($ctx: Context) => (Context | null)>} */
+    /** @type {Array<($ctx: Context) => (Context | false)>} */
     const result = [];
     for (const attr of elm.attributes) {
       if (attr.name.startsWith("@")) {
@@ -134,9 +143,12 @@ const htmxJson = (function () {
         const getter = createGetter(attr.value);
         if (!getter) continue;
         const setter = createSetter(kebabChainToCamelChain(attr.name));
-        result.push(($ctx) => setter(elm, getter($ctx)));
+        result.push(($ctx) => {
+          setter(elm, getter($ctx));
+          return $ctx;
+        });
       } else if (attr.name === "json-ignore") {
-        result.push(($ctx) => null);
+        result.push(($ctx) => false);
         // stop processing of the array
         break;
       } else if (attr.name === "json-with") {
@@ -446,26 +458,13 @@ const htmxJson = (function () {
    * @param {Node | null} start
    * @param {any} end
    * @param {Context} $ctx
+   *
+   * @returns {void}
    */
   function swapUntil(start, end, $ctx) {
     while (start && start !== end) {
-      start = swap(start, $ctx).nextSibling;
+      start = (swap(start, $ctx) ?? start).nextSibling;
     }
-    return start;
-  }
-
-  /**
-   *
-   * @param {Node} parent
-   * @param {Context} $ctx
-   * @returns {Node}
-   */
-  function recurse(parent, $ctx) {
-    let elm = parent.firstChild;
-    while (elm) {
-      elm = swap(elm, $ctx).nextSibling;
-    }
-    return parent;
   }
 
   /**
@@ -521,10 +520,12 @@ const htmxJson = (function () {
   /**
    *
    * @param {String} name
-   * @returns {Function}
+   * @returns {(obj: any, value: any) => void}
    */
   function createSetter(name) {
-    return new Function("obj", "value", `obj${name} = value;`);
+    return /** @type {(obj: any, value: any) => void} */ (
+      new Function("obj", "value", `obj${name} = value;`)
+    );
   }
 
   /**
@@ -534,10 +535,10 @@ const htmxJson = (function () {
    */
   function createGetter(value) {
     if (!value) return null;
-    // @ts-ignore
-    return new Function(
-      "{$this, $parent, $index, $key}",
-      `
+    return /** @type {Getter} */ (
+      new Function(
+        "{$this, $parent, $index, $key}",
+        `
         try {
           with ($this){
             return (${value});
@@ -549,6 +550,7 @@ const htmxJson = (function () {
           throw e;
         }
       `
+      )
     );
   }
 
@@ -576,6 +578,8 @@ const htmxJson = (function () {
     /**
      * @param {Node} elm
      * @param {any} data
+     *
+     * @returns {void}
      */
     swap(elm, data) {
       swap(elm, createContext(data));
