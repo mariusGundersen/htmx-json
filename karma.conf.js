@@ -12,7 +12,7 @@ module.exports = function (config) {
     frameworks: ["jasmine"],
 
     // list of files / patterns to load in the browser
-    files: ["src/*.js", "test/*.test", "test/*.js"],
+    files: ["src/*.js", "test/**/*.test.js"],
 
     // list of files / patterns to exclude
     exclude: [],
@@ -52,6 +52,10 @@ module.exports = function (config) {
     // Concurrency level
     // how many browser instances should be started simultaneously
     concurrency: Infinity,
+
+    jasmine: {
+      random: false,
+    },
 
     coverageReporter: {
       type: "lcovonly",
