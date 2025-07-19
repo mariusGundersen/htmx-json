@@ -55,16 +55,17 @@ const htmxJson = (function () {
    *
    * @param {Node} elm
    * @param {Context} $ctx
+   * @param {Node} [end]
    * @returns {Node | null}
    */
-  function swap(elm, $ctx) {
+  function swap(elm, $ctx, end) {
     if (elm instanceof Text) {
       const textGetter = getOrCreate(elm, "text", createTextGetter);
       if (!textGetter) return null;
       elm.textContent = textGetter($ctx);
       return elm;
     } else if (elm instanceof HTMLTemplateElement) {
-      return handleEach(elm, $ctx) ?? handleIf(elm, $ctx) ?? elm;
+      return handleEach(elm, $ctx, end) ?? handleIf(elm, $ctx, end) ?? elm;
     } else if (elm instanceof HTMLElement) {
       /** @type {false | Context} */
       let nextCtx = $ctx;
@@ -202,11 +203,12 @@ const htmxJson = (function () {
   /**
    * @param {HTMLTemplateElement} elm
    * @param {Context} $ctx
+   * @param {Node} [parentEnd]
    */
-  function handleEach(elm, $ctx) {
+  function handleEach(elm, $ctx, parentEnd) {
     const eachGetter = getGetter(elm, "json-each");
     if (!eachGetter) return null;
-    const end = getOrCreate(elm, "/json-each", findOrCreateComment);
+    const end = getOrCreate(elm, "/json-each", findOrCreateComment, parentEnd);
     if (!end) return elm;
 
     let existingComment = elm.nextSibling;
@@ -368,15 +370,21 @@ const htmxJson = (function () {
   /**
    * @param {HTMLTemplateElement} elm
    * @param {Context} $ctx
+   * @param {Node} [parentEnd]
    */
-  function handleIf(elm, $ctx) {
+  function handleIf(elm, $ctx, parentEnd) {
     const ifGetter = getGetter(elm, "json-if");
     if (!ifGetter) return null;
     const otherwise = getOrCreate(elm, "json-else", findTemplate);
 
     const elmOrOtherwise = otherwise ?? elm;
 
-    const end = getOrCreate(elmOrOtherwise, "/json-if", findOrCreateComment);
+    const end = getOrCreate(
+      elmOrOtherwise,
+      "/json-if",
+      findOrCreateComment,
+      parentEnd
+    );
     if (!end) return elmOrOtherwise;
 
     if (ifGetter($ctx)) {
@@ -423,10 +431,11 @@ const htmxJson = (function () {
   /**
    * @param {ChildNode} elm
    * @param {string} key
+   * @param {Node} [end]
    */
-  function findOrCreateComment(elm, key) {
+  function findOrCreateComment(elm, key, end) {
     return (
-      findComment(elm, key) ??
+      findComment(elm, key, end) ??
       elm.parentNode?.insertBefore(document.createComment(key), elm.nextSibling)
     );
   }
@@ -445,21 +454,36 @@ const htmxJson = (function () {
   /**
    * @param {ChildNode | null} node
    * @param {string} [key]
+   * @param {Node} [end]
    * @returns {Comment | null}
    */
-  function findComment(node, key) {
-    let depth = 0;
-    while (node) {
-      node = node.nextSibling;
+  function findComment(node, key, end) {
+    let ifCount = 0,
+      eachCount = 0;
+    node = node?.nextSibling ?? null;
+    while (node && node !== end) {
       if (node instanceof Comment) {
-        if (depth === 0) {
-          if (key === undefined || node.data === key) return node;
-        } else {
-          depth--;
+        if (ifCount > 0 && node.data === "/json-if") {
+          ifCount--;
+        } else if (eachCount > 0 && node.data === "/json-each") {
+          eachCount--;
+        } else if (
+          ifCount === 0 &&
+          eachCount === 0 &&
+          (key === undefined || node.data === key)
+        ) {
+          return node;
         }
       } else if (node instanceof HTMLTemplateElement) {
-        depth++;
+        for (const { name } of node.attributes) {
+          if (name === "json-if") {
+            ifCount++;
+          } else if (name === "json-each") {
+            eachCount++;
+          }
+        }
       }
+      node = node.nextSibling;
     }
     return null;
   }
@@ -473,7 +497,7 @@ const htmxJson = (function () {
    */
   function swapUntil(start, end, $ctx) {
     while (start && start !== end) {
-      start = (swap(start, $ctx) ?? start).nextSibling;
+      start = (swap(start, $ctx, end) ?? start).nextSibling;
     }
   }
 
@@ -512,16 +536,18 @@ const htmxJson = (function () {
   /**
    * @template T
    * @template {Node} N
+   * @template {any[]} P
    * @param {N} elm
    * @param {string} key
-   * @param {(elm: N, key: string) => T} factory
+   * @param {(elm: N, key: string, ...args: P) => T} factory
+   * @param {P} args
    * @returns {T}
    */
-  function getOrCreate(elm, key, factory) {
+  function getOrCreate(elm, key, factory, ...args) {
     const map = (elm[jsonMap] ??= new Map());
     let value = map.get(key);
     if (value === undefined) {
-      value = factory(elm, key);
+      value = factory(elm, key, ...args);
       map.set(key, value);
     }
     return value;
