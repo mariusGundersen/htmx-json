@@ -33,7 +33,16 @@
   </header>
   <main class="container">
     <h1>json-if</h1>
-<p>A <code>&lt;template&gt;</code> element with <code>json-if</code> attribute can be used to conditionally include content.</p>
+<p>A <code>&lt;template&gt;</code> element with <code>json-if</code> attribute can be used to conditionally include content, and <code>json-else</code> can optionally be used to cover the opposite condition.</p>
+<pre><code class="language-html">&lt;template json-if=&quot;someCondition&quot;&gt;
+  &lt;span&gt;This is only shown if `someCondition` is truthy.&lt;/span&gt;
+&lt;/template&gt;
+&lt;template json-else&gt;
+  &lt;span&gt;This is only show if the condition is falsy&lt;/span&gt;
+&lt;/template&gt;
+</code></pre>
+<h2>json-else</h2>
+<p>A <code>&lt;template&gt;</code> element with <code>json-else</code> can optionally directly follow the <code>json-if</code> template. The attribute must be empty.</p>
 
   </main>
 </body>
