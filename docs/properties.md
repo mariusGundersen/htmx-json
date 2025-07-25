@@ -1,7 +1,7 @@
 ---
 layout: layout.html
 ---
-# Properties
+# .properties
 
 Properties of html elements can be set with the `.` prefix, for eksempel `.text-content="someValue"`.
 
@@ -12,3 +12,5 @@ The property name can include `.` to set values in objects, for example the prop
 ```html
 <span .style.background-color="color">This will be red</span>
 ```
+
+The value is interpreted as a JavaScript expression. 
