@@ -34,11 +34,18 @@
   <main class="container">
     <h1>.properties</h1>
 <p>Properties of html elements can be set with the <code>.</code> prefix, for eksempel <code>.text-content=&quot;someValue&quot;</code>.</p>
-<p>Because html attributes are not case-sensitive the property name cannot contain upper case letters. Instead of using the <code>camelCase</code> name of a property the <code>kebab-case</code> name should be used instead.</p>
-<p>The property name can include <code>.</code> to set values in objects, for example the properties of the style property:</p>
-<pre><code class="language-html">&lt;span .style.background-color=&quot;color&quot;&gt;This will be red&lt;/span&gt;
+<p>Because html attributes are not case-sensitive the property name cannot contain upper case letters. Instead of using the <code>camelCase</code> name of a property the <code>kebab-case</code> name should be used instead. Therefore the property <code>.textContent</code> is set with the attribute <code>.text-content</code>.</p>
+<p>The property name can include <code>.</code> to set values in objects, for example the style properties:</p>
+<pre><code class="language-html">&lt;span .style.background-color=&quot;color&quot;&gt;
+  This will be red
+&lt;/span&gt;
 </code></pre>
-<p>The value is interpreted as a JavaScript expression.</p>
+<p>The value is interpreted as a JavaScript expression, so to use a string the value must be wrapped in ```.</p>
+<pre><code class="language-html">&lt;span .style.width=&quot;`${count * 32}px`&quot;&gt;
+  The width will be 32px * count 
+&lt;/span&gt;
+</code></pre>
+<p>Using <code>.text-content</code> can be very useful to set the text and have a pre-rendered value until the new json content is applied.</p>
 
   </main>
 </body>
