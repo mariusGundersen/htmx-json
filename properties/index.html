@@ -33,7 +33,11 @@
   </header>
   <main class="container">
     <h1>Properties</h1>
-<p>Properties of html elements can be set with the <code>.</code> prefix, for eksempel `.textContent=&quot;someValue&quot;.</p>
+<p>Properties of html elements can be set with the <code>.</code> prefix, for eksempel <code>.text-content=&quot;someValue&quot;</code>.</p>
+<p>Because html attributes are not case-sensitive the property name cannot contain upper case letters. Instead of using the <code>camelCase</code> name of a property the <code>kebab-case</code> name should be used instead.</p>
+<p>The property name can include <code>.</code> to set values in objects, for example the properties of the style property:</p>
+<pre><code class="language-html">&lt;span .style.background-color=&quot;color&quot;&gt;This will be red&lt;/span&gt;
+</code></pre>
 
   </main>
 </body>
