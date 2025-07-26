@@ -29,6 +29,9 @@
     "puppeteer": "^24.12.1",
     "uglify-js": "^3.19.3"
   },
+  "resolutions": {
+    "karma": "^6.4.4",
+  },
   "files": [
     "readme.md",
     "dist/*.js"
