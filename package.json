@@ -5,6 +5,7 @@
   "unpkg": "dist/htmx-json.min.js",
   "scripts": {
     "test": "karma start",
+    "benchmark": "karma start karma.benchmark.conf.js",
     "preversion": "karma start --single-run",
     "version": "node ./scripts/build.mjs && git add -A"
   },
@@ -16,8 +17,11 @@
     "htmx.org": "^2.0.6"
   },
   "devDependencies": {
+    "benchmark": "^2.1.4",
     "jasmine-core": "^5.8.0",
     "karma": "^6.4.4",
+    "karma-benchmark": "^1.0.4",
+    "karma-benchmarkjs-reporter": "^1.0.0",
     "karma-chrome-launcher": "^3.2.0",
     "karma-coverage": "^2.2.1",
     "karma-firefox-launcher": "^2.1.3",
