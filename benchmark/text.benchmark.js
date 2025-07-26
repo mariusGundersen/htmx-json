@@ -20,6 +20,7 @@ suite("setting text", () => {
       setup() {
         this.div = document.createElement("div");
         this.div.innerHTML = `<span .text-content="\`random \${Math.random()} value\`"></span>`;
+        htmxJson.swap(this.div, {});
       },
     }
   );
