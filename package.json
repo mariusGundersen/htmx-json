@@ -30,7 +30,7 @@
     "uglify-js": "^3.19.3"
   },
   "resolutions": {
-    "karma": "^6.4.4",
+    "karma": "^6.4.4"
   },
   "files": [
     "readme.md",
