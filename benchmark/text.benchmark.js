@@ -19,7 +19,7 @@ suite("setting text", () => {
     {
       setup() {
         this.div = document.createElement("div");
-        this.div.setAttribute(".text-content", "`random ${Math.random()} value`");
+        this.div.outerHTML = `<div .text-content="\`random \${Math.random()} value\`"></div>`);
         htmxJson.swap(this.div, {});
       },
     }
