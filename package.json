@@ -6,7 +6,7 @@
   "scripts": {
     "test": "karma start",
     "benchmark": "karma start karma.benchmark.conf.js",
-    "preversion": "karma start --single-run && karma start karma.benchmark.conf.js - - single-run",
+    "preversion": "karma start --single-run && karma start karma.benchmark.conf.js --single-run",
     "version": "node ./scripts/build.mjs && git add -A"
   },
   "keywords": [],
