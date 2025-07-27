@@ -1,5 +1,5 @@
 ---
-layout: layout.htnl
+layout: layout.html
 ---
 
 # json-each
