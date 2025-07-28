@@ -4,7 +4,7 @@ layout: layout.html
 
 # HTMX-JSON
 
-This htmx extension adds support for using json response in htmx. By using a combination of attributes and templates it can easily update the dom with new values from the json response. This way you can write your html in the html file and rely on a small json response.
+This [htmx extension](https://htmx.org/extensions/) adds support for using json response in [htmx](https://htmx.org/). By using a combination of attributes and templates it can easily update the dom with new values from the json response. This way you can write your html in the html file and rely on a small json response.
 
 ## Install
 
