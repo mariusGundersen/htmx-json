@@ -61,23 +61,22 @@
 </code></pre>
 <p>Given an api endpoint that returns this json:</p>
 <pre><code class="language-json">{
-  &quot;title&quot;: &quot;Data&quot;,
-  &quot;show&quot;: true,
+  &quot;title&quot;: &quot;This is an example&quot;,
+  &quot;url&quot;: &quot;https://example.com&quot;,
+  &quot;linkText&quot;: &quot;Click here&quot;, 
   &quot;list&quot;: [&quot;very&quot;, &quot;simple&quot;, &quot;and&quot;, &quot;cool&quot;]
 }
 </code></pre>
 <p>Add attributes and templates to an html</p>
-<pre><code class="language-html">&lt;body hx-ext=&quot;json-swap&quot;&gt;
-  &lt;div hx-get=&quot;/api/data&quot; hx-trigger=&quot;load, every 60s&quot; hx-swap=&quot;json&quot;&gt;
-    &lt;h2 json-text=&quot;title&quot;&gt;This will be replaced by the value of `title`&lt;/h2&gt;
-    &lt;p json-show=&quot;show&quot;&gt;This will only be shown when `show` is true&lt;/p&gt;
+<pre><code class="language-html">&lt;div hx-get=&quot;/api/data&quot; hx-trigger=&quot;load, every 60s&quot; hx-swap=&quot;json&quot;&gt;
+    &lt;h2 .text-content=&quot;title&quot;&gt;This will be replaced by the value of `title`&lt;/h2&gt;
+    &lt;a @href=&quot;url&quot; .text-content=&quot;linkText&quot;&gt;This is a link&lt;/p&gt;
     &lt;ul&gt;
       &lt;template json-each=&quot;list&quot;&gt;
         &lt;li&gt;${$this}&lt;/li&gt;
       &lt;/template&gt;
-    &lt;/ul&gt;
-  &lt;/div&gt;
-&lt;/body&gt;
+  &lt;/ul&gt;
+&lt;/div&gt;
 </code></pre>
 
   </main>
