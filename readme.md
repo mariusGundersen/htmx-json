@@ -1,6 +1,8 @@
 # htmx-json
 
-Support for json response in [htmx](https://htmx.org/) 
+Support for json response in [htmx](https://htmx.org/).
+
+[Documentation](https://mariusgundersen.github.io/htmx-json/) 
 
 ## What is this?
 
