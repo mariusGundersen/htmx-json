@@ -36,8 +36,9 @@ Given an api endpoint that returns this json:
 
 ```json
 {
-  "title": "Data",
-  "show": true,
+  "title": "This is an example",
+  "url": "https://example.com",
+  "linkText": "Click here", 
   "list": ["very", "simple", "and", "cool"]
 }
 ```
@@ -45,15 +46,13 @@ Given an api endpoint that returns this json:
 Add attributes and templates to an html
 
 ```html
-<body hx-ext="json-swap">
-  <div hx-get="/api/data" hx-trigger="load, every 60s" hx-swap="json">
-    <h2 json-text="title">This will be replaced by the value of `title`</h2>
-    <p json-show="show">This will only be shown when `show` is true</p>
+<div hx-get="/api/data" hx-trigger="load, every 60s" hx-swap="json">
+    <h2 .text-content="title">This will be replaced by the value of `title`</h2>
+    <a @href="url" .text-content="linkText">This is a link</p>
     <ul>
       <template json-each="list">
         <li>${$this}</li>
       </template>
-    </ul>
-  </div>
-</body>
+  </ul>
+</div>
 ```
