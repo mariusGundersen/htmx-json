@@ -8,10 +8,10 @@ This htmx extension adds support for using json response in htmx. By using a com
 
 ## Install
 
-Just reference it from a cdn like unpkg, just like you do with htmx. 
+Just reference it from a cdn, like you do with htmx. 
 
 ```html
-<script src="https://unpkg.com/htmx-json"></script>
+<script src=" https://cdn.jsdelivr.net/npm/htmx-json@1/dist/htmx-json.min.js "></script>
 ```
 
 ## Usage
