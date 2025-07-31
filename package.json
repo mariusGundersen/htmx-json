@@ -7,7 +7,9 @@
     "test": "karma start",
     "benchmark": "karma start karma.benchmark.conf.js",
     "preversion": "karma start --single-run && karma start karma.benchmark.conf.js --single-run",
-    "version": "node ./scripts/build.mjs && git add -A"
+    "version": "node ./scripts/build.mjs && git add -A",
+    "docs": "npx @11ty/eleventy  --pathprefix=/htmx-json/",
+    "docs:dev": "npx @11ty/eleventy --serve"
   },
   "keywords": [],
   "author": "Marius Gundersen",
@@ -17,6 +19,7 @@
     "htmx.org": "^2.0.6"
   },
   "devDependencies": {
+    "@11ty/eleventy": "^3.1.2",
     "benchmark": "^2.1.4",
     "jasmine-core": "^5.8.0",
     "karma": "^6.4.4",
