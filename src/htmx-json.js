@@ -211,18 +211,18 @@ const htmxJson = (function () {
     const end = getOrCreate(elm, "/json-each", findOrCreateComment, parentEnd);
     if (!end) return elm;
 
-    //const existingList = getOrCreate(elm, "existingList", (elm) => {
-    /** @type {Comment[]} */
-    const existingList = [];
+    const existingList = getOrCreate(elm, "existingList", (elm) => {
+      /** @type {Comment[]} */
+      const existingList = [];
 
-    let existingComment = elm.nextSibling;
-    while (existingComment instanceof Comment && existingComment !== end) {
-      existingList.push(existingComment);
-      existingComment = findComment(existingComment) ?? end;
-    }
+      let existingComment = elm.nextSibling;
+      while (existingComment instanceof Comment && existingComment !== end) {
+        existingList.push(existingComment);
+        existingComment = findComment(existingComment) ?? end;
+      }
 
-    //  return existingList;
-    //});
+      return existingList;
+    });
 
     const keyToItem = getItemsMap(eachGetter, $ctx, elm);
 
