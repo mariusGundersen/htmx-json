@@ -211,28 +211,38 @@ const htmxJson = (function () {
     const end = getOrCreate(elm, "/json-each", findOrCreateComment, parentEnd);
     if (!end) return elm;
 
+    //const existingList = getOrCreate(elm, "existingList", (elm) => {
+    /** @type {Comment[]} */
+    const existingList = [];
+
     let existingComment = elm.nextSibling;
+    while (existingComment instanceof Comment && existingComment !== end) {
+      existingList.push(existingComment);
+      existingComment = findComment(existingComment) ?? end;
+    }
+
+    //  return existingList;
+    //});
 
     const keyToItem = getItemsMap(eachGetter, $ctx, elm);
 
     const entries = Array.from(keyToItem.entries());
 
-    for (let $index = 0; $index < entries.length; $index++) {
+    let $index;
+    for ($index = 0; $index < entries.length; $index++) {
       const [newKey, item] = entries[$index];
+      const existingComment = existingList[$index];
 
-      if (existingComment instanceof Comment && existingComment !== end) {
+      if (existingComment instanceof Comment) {
         const oldKey = existingComment.data;
 
         if (oldKey === newKey) {
           // Same key
           // * update index
           // * recurse into children
-          const child = existingComment.nextSibling;
-          existingComment.data = newKey;
-          existingComment = findComment(existingComment) ?? end;
-          swapUntil(
-            child,
-            existingComment,
+          swapFromTo(
+            existingComment.nextSibling,
+            existingList[$index + 1] ?? end,
             createContext(item, $ctx, $index, newKey)
           );
         } else {
@@ -247,14 +257,15 @@ const htmxJson = (function () {
 
           let oldKeyExistsInList = keyToItem.has(oldKey);
           if (oldKeyExistsInList) {
-            const movingComment = findComment(existingComment, newKey);
-            if (movingComment) {
+            const movingCommentIndex = existingList.findIndex(
+              (c) => c.data === newKey
+            );
+            if (movingCommentIndex >= 0) {
+              const movingComment = existingList[movingCommentIndex];
               // Move from old position to current position
               // skipping over the stuff that will be moved
-              const oldNextComment = findComment(movingComment) ?? end;
-
-              // update old comment data
-              movingComment.data = newKey;
+              const oldNextComment =
+                existingList[movingCommentIndex + 1] ?? end;
 
               // move nodes
               const previousSibling = movingComment.previousSibling;
@@ -268,19 +279,24 @@ const htmxJson = (function () {
                 );
               }
 
-              swapUntil(
+              swapFromTo(
                 movingComment,
                 existingComment,
                 createContext(item, $ctx, $index, newKey)
               );
+
+              existingList.splice(movingCommentIndex, 1);
+              existingList.splice($index, 0, movingComment);
             } else {
               // Insert new item
               const clone = elm.content.cloneNode(true);
               const comment = document.createComment(newKey);
 
+              existingList.splice($index, 0, comment);
+
               elm.parentNode?.insertBefore(comment, existingComment);
               elm.parentNode?.insertBefore(clone, existingComment);
-              swapUntil(
+              swapFromTo(
                 comment.nextSibling,
                 existingComment,
                 createContext(item, $ctx, $index, newKey)
@@ -290,7 +306,7 @@ const htmxJson = (function () {
             // Remove current item
 
             // skip over this comment
-            const nextComment = findComment(existingComment) ?? end;
+            const nextComment = existingList[$index + 1] ?? end;
 
             const previousSibling = existingComment.previousSibling;
             while (
@@ -300,34 +316,34 @@ const htmxJson = (function () {
               previousSibling.nextSibling.remove();
             }
 
-            existingComment = nextComment;
+            existingList.splice($index, 1);
             // since we removed an item we need to subtract it from the current index
             $index--;
           }
         }
-      } else if (existingComment === end) {
+      } else {
         // Append item at the end
         const clone = elm.content.cloneNode(true);
         const comment = document.createComment(newKey);
+        existingList.push(comment);
 
         elm.parentNode?.insertBefore(comment, end);
         elm.parentNode?.insertBefore(clone, end);
-        swapUntil(
+        swapFromTo(
           comment.nextSibling,
           end,
           createContext(item, $ctx, $index, newKey)
         );
-      } else {
-        throw new Error("This should not have happened");
       }
     }
 
     // Remove everything remaining
-    const lastNode = existingComment?.previousSibling;
+    const lastNode = existingList[$index]?.previousSibling;
     if (lastNode) {
       while (lastNode.nextSibling && lastNode.nextSibling !== end) {
         lastNode.nextSibling.remove();
       }
+      existingList.splice($index, existingList.length - $index);
     }
 
     return end;
@@ -352,18 +368,27 @@ const htmxJson = (function () {
           item,
         ])
       );
-    } else {
+    } else if (typeof items === "object") {
       if (keyGetter)
         console.warn("json-key is not used when json-each is an object");
       return new Map(
         Object.entries(items).map(([key, value]) => {
           if (Number(key) >= 0)
             console.warn(
-              "Objects with integer keys will be iterated over in unexpected order!"
+              `Objects with integer keys will be iterated over in unexpected order!\nFound key ${key} in ${JSON.stringify(
+                items
+              )}`
             );
           return [key, value];
         })
       );
+    } else {
+      console.warn(
+        `each expects an array or object, got ${JSON.stringify(items)} on ${
+          elm.outerHTML
+        }`
+      );
+      return new Map();
     }
   }
 
@@ -398,7 +423,7 @@ const htmxJson = (function () {
         }
         elm.parentNode?.insertBefore(elm.content.cloneNode(true), end);
       }
-      swapUntil(elmOrOtherwise.nextSibling, end, $ctx);
+      swapFromTo(elmOrOtherwise.nextSibling, end, $ctx);
     } else if (otherwise) {
       if (get(elm, "if") !== false) {
         set(elm, "if", false);
@@ -413,7 +438,7 @@ const htmxJson = (function () {
           end
         );
       }
-      swapUntil(elmOrOtherwise.nextSibling, end, $ctx);
+      swapFromTo(elmOrOtherwise.nextSibling, end, $ctx);
     } else {
       if (get(elm, "if") !== false) {
         set(elm, "if", false);
@@ -495,7 +520,7 @@ const htmxJson = (function () {
    *
    * @returns {void}
    */
-  function swapUntil(start, end, $ctx) {
+  function swapFromTo(start, end, $ctx) {
     while (start && start !== end) {
       start = (swap(start, $ctx, end) ?? start).nextSibling;
     }
