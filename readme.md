@@ -2,7 +2,7 @@
 
 Support for json response in [htmx](https://htmx.org/).
 
-[Documentation](https://mariusgundersen.github.io/htmx-json/) 
+[Documentation](https://mariusgundersen.github.io/htmx-json/)
 
 ## What is this?
 
@@ -10,7 +10,7 @@ This [htmx extension](https://htmx.org/extensions/) adds support for using json 
 
 ## Install
 
-Just reference it from a cdn like unpkg, just like you do with htmx. 
+Just reference it from a cdn like unpkg, just like you do with htmx.
 
 ```html
 <script src="https://unpkg.com/htmx-json"></script>
@@ -99,7 +99,7 @@ Ignore entire subtree from being processed. `json-ignore` also ignores any attri
 
 ### `json-if`
 
-You can conditionally have html using a template tag with `json-if`, and optionally `json-else`
+You can conditionally have html using a template tag with `json-if`, and optionally `json-else-if` and `json-else`
 
 ```html
 <template json-if="someCondition">
@@ -107,6 +107,23 @@ You can conditionally have html using a template tag with `json-if`, and optiona
 </template>
 <template json-else>
   <span>This is only show if the condition is falsy</span>
+</template>
+```
+
+You can have any number of `json-else-if` to create a kind of switch statement:
+
+```html
+<template json-if="status == 'OK'">
+  <span>Everything is OK</span>
+</template>
+<template json-else-if="status == 'ERROR'">
+  <span>There is an error</span>
+</template>
+<template json-else-if="status == 'WARN'">
+  <span>There is a warning</span>
+</template>
+<template json-else>
+  <span>Status is unknown</span>
 </template>
 ```
 
