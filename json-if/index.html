@@ -52,7 +52,22 @@
 &lt;/template&gt;
 </code></pre>
 <h2>json-else</h2>
-<p>A <code>&lt;template&gt;</code> element with <code>json-else</code> can optionally directly follow the <code>json-if</code> template. The attribute must be empty.</p>
+<p>A <code>&lt;template&gt;</code> element with <code>json-else</code> can optionally directly follow the <code>json-if</code> (or <code>json-else-if</code>, when they are used) template. The attribute must be empty.</p>
+<h2>json-else-if</h2>
+<p>A <code>&lt;template&gt;</code> element with <code>json-else-if</code> can optionally be included. It must be after <code>json-if</code> and before the <code>json-else</code>, if present. The attribute contains the condition. If the condition in <code>json-if</code> is falsy then the first <code>json-else-if</code> condition to be truthy will result in the contents of the template being rendered. If none of the <code>json-else-if</code> conditions are truthy then the contents of the <code>json-else</code> template is rendered (if it is present).</p>
+<pre><code class="language-html">&lt;template json-if=&quot;status == 'OK'&quot;&gt;
+  &lt;span&gt;Everything is OK&lt;/span&gt;
+&lt;/template&gt;
+&lt;template json-else-if=&quot;status == 'ERROR'&quot;&gt;
+  &lt;span&gt;There is an error&lt;/span&gt;
+&lt;/template&gt;
+&lt;template json-else-if=&quot;status == 'WARN'&quot;&gt;
+  &lt;span&gt;There is a warning&lt;/span&gt;
+&lt;/template&gt;
+&lt;template json-else&gt;
+  &lt;span&gt;Status is unknown&lt;/span&gt;
+&lt;/template&gt;
+</code></pre>
 
   </main>
 </body>
