@@ -2,8 +2,8 @@ describe("each nested", () => {
   const div = document.createElement("div");
   beforeAll(() => {
     div.innerHTML = `
-    <template json-each="a">
-      <template json-each="$this">
+    <template json-each="list" json-key="key">
+      <template json-each="list">
         <span>\${$this}</span>
       </template>
     </template>`;
@@ -11,10 +11,10 @@ describe("each nested", () => {
 
   it("should initialize", () => {
     htmxJson.swap(div, {
-      a: [
-        ["a", "b", "c"],
-        ["d", "e", "f"],
-        ["g", "h", "i"],
+      list: [
+        { key: "a", list: ["a", "b", "c"] },
+        { key: "b", list: ["d", "e", "f"] },
+        { key: "c", list: ["g", "h", "i"] },
       ],
     });
     expect(div.textContent.replaceAll(/\s/g, "")).toBe("abcdefghi");
@@ -22,10 +22,10 @@ describe("each nested", () => {
 
   it("should be swappable", () => {
     htmxJson.swap(div, {
-      a: [
-        ["a", "b", "c"],
-        ["g", "h", "i"],
-        ["d", "e", "f"],
+      list: [
+        { key: "a", list: ["a", "b", "c"] },
+        { key: "c", list: ["g", "h", "i"] },
+        { key: "b", list: ["d", "e", "f"] },
       ],
     });
     expect(div.textContent.replaceAll(/\s/g, "")).toBe("abcghidef");
