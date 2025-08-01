@@ -5,7 +5,7 @@ describe("if", () => {
     div.innerHTML = `<template json-if="condition">Shown</template>`;
     htmxJson.swap(div, { condition: true });
     expect(div.innerHTML).toBe(
-      `<template json-if="condition">Shown</template>Shown<!--/json-if-->`
+      `<template json-if="condition">Shown</template><!--json-if-->Shown<!--/json-if-->`
     );
   });
 
@@ -13,7 +13,7 @@ describe("if", () => {
     div.innerHTML = `<template json-if="condition">Shown</template>`;
     htmxJson.swap(div, { condition: false });
     expect(div.innerHTML).toBe(
-      `<template json-if="condition">Shown</template><!--/json-if-->`
+      `<template json-if="condition">Shown</template><!--json-else--><!--/json-if-->`
     );
   });
 
@@ -21,7 +21,7 @@ describe("if", () => {
     div.innerHTML = `<template json-if="condition">First</template><template json-else>Second</template>`;
     htmxJson.swap(div, { condition: false });
     expect(div.innerHTML).toBe(
-      `<template json-if="condition">First</template><template json-else="">Second</template>Second<!--/json-if-->`
+      `<template json-if="condition">First</template><template json-else="">Second</template><!--json-else-->Second<!--/json-if-->`
     );
   });
 
@@ -29,8 +29,16 @@ describe("if", () => {
     div.innerHTML = `<template json-if="condition">First</template><template json-else>Second</template>`;
     htmxJson.swap(div, { condition: true });
     expect(div.innerHTML).toBe(
-      `<template json-if="condition">First</template><template json-else="">Second</template>First<!--/json-if-->`
+      `<template json-if="condition">First</template><template json-else="">Second</template><!--json-if-->First<!--/json-if-->`
     );
+  });
+
+  it("should not replace the existing markup", () => {
+    div.innerHTML = `<template json-if="condition"><span>First</span></template><!--json-if--><span>First</span><!--/json-if-->`;
+    const spanBefore = div.querySelector('span');
+    htmxJson.swap(div, { condition: true });
+    const spanAfter = div.querySelector('span');
+    expect(spanBefore).toBe(spanAfter);
   });
 
   describe("nested", () => {
@@ -78,6 +86,7 @@ describe("if", () => {
             \${$this}
           </template>
         </template>
+          <!--json-if-->
           <template json-each="list">
             \${$this}
           </template><!--0-->

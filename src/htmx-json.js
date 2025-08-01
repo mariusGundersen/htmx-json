@@ -358,8 +358,7 @@ const htmxJson = (function () {
       });
     } else {
       console.warn(
-        `each expects an array or object, got ${JSON.stringify(items)} on ${
-          elm.outerHTML
+        `each expects an array or object, got ${JSON.stringify(items)} on ${elm.outerHTML
         }`
       );
       return [];
@@ -396,38 +395,57 @@ const htmxJson = (function () {
 
     const elmOrOtherwise = otherwise ?? elm;
 
+    const comment = getOrCreateNextComment(elmOrOtherwise, parentEnd);
+
     const end = getOrCreate(
-      elmOrOtherwise,
+      comment,
       "/json-if",
       findOrCreateComment,
       parentEnd
     );
-    if (!end) return elmOrOtherwise;
+    if (!end) throw new Error("Could not create end, that is weird...");
+
 
     if (ifGetter($ctx)) {
-      if (get(elm, "if") !== true) {
-        set(elm, "if", true);
-        removeFromTo(elmOrOtherwise.nextSibling, end);
+      if (comment.data !== 'json-if') {
+        comment.data = 'json-if';
+        removeFromTo(comment.nextSibling, end);
         elm.parentNode?.insertBefore(elm.content.cloneNode(true), end);
       }
-      swapFromTo(elmOrOtherwise.nextSibling, end, $ctx);
+      swapFromTo(comment.nextSibling, end, $ctx);
     } else if (otherwise) {
-      if (get(elm, "if") !== false) {
-        set(elm, "if", false);
-        removeFromTo(elmOrOtherwise.nextSibling, end);
+      if (comment.data !== 'json-else') {
+        comment.data = 'json-else'
+        removeFromTo(comment.nextSibling, end);
         otherwise.parentNode?.insertBefore(
           otherwise.content.cloneNode(true),
           end
         );
       }
-      swapFromTo(elmOrOtherwise.nextSibling, end, $ctx);
+      swapFromTo(comment.nextSibling, end, $ctx);
     } else {
-      if (get(elm, "if") !== false) {
-        set(elm, "if", false);
-        removeFromTo(elmOrOtherwise.nextSibling, end);
+      if (comment.data !== 'json-else') {
+        comment.data = 'json-else'
+        removeFromTo(comment.nextSibling, end);
       }
     }
     return end;
+  }
+
+  /**
+   * @param {ChildNode} elm
+   * @param {Node} [end]
+   * @returns {Comment}
+   */
+  function getOrCreateNextComment(elm, end) {
+    const comment = elm.nextSibling;
+    if (comment instanceof Comment && comment !== end) {
+      return comment
+    } else {
+      const comment = document.createComment('');
+      elm.parentNode?.insertBefore(comment, elm.nextSibling);
+      return comment;
+    }
   }
 
   /**
