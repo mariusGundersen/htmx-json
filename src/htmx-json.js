@@ -375,6 +375,9 @@ const htmxJson = (function () {
     const existingList = [];
 
     let existingComment = elm.nextSibling;
+    while (existingComment instanceof Text) {
+      existingComment = existingComment.nextSibling;
+    }
     while (existingComment instanceof Comment && existingComment !== end) {
       existingList.push(existingComment);
       existingComment = findComment(existingComment) ?? end;
@@ -438,7 +441,10 @@ const htmxJson = (function () {
    * @returns {Comment}
    */
   function getOrCreateNextComment(elm, end) {
-    const comment = elm.nextSibling;
+    let comment = elm.nextSibling;
+    while (comment instanceof Text) {
+      comment = comment.nextSibling;
+    }
     if (comment instanceof Comment && comment !== end) {
       return comment
     } else {

@@ -18,11 +18,15 @@ describe("if", () => {
   });
 
   it("should show else when falsy", () => {
-    div.innerHTML = `<template json-if="condition">First</template><template json-else>Second</template>`;
+    div.innerHTML = `
+      <template json-if="condition">First</template>
+      <template json-else>Second</template>
+    `;
     htmxJson.swap(div, { condition: false });
-    expect(div.innerHTML).toBe(
-      `<template json-if="condition">First</template><template json-else="">Second</template><!--json-else-->Second<!--/json-if-->`
-    );
+    expect(div.innerHTML).toBe(`
+      <template json-if="condition">First</template>
+      <template json-else="">Second</template><!--json-else-->Second<!--/json-if-->
+    `);
   });
 
   it("should show if when truthy", () => {
@@ -34,7 +38,14 @@ describe("if", () => {
   });
 
   it("should not replace the existing markup", () => {
-    div.innerHTML = `<template json-if="condition"><span>First</span></template><!--json-if--><span>First</span><!--/json-if-->`;
+    div.innerHTML = `
+      <template json-if="condition">
+        <span>First</span>
+      </template>
+      <!--json-if-->
+      <span>First</span>
+      <!--/json-if-->
+    `;
     const spanBefore = div.querySelector('span');
     htmxJson.swap(div, { condition: true });
     const spanAfter = div.querySelector('span');
