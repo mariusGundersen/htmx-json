@@ -358,8 +358,7 @@ const htmxJson = (function () {
       });
     } else {
       console.warn(
-        `each expects an array or object, got ${JSON.stringify(items)} on ${
-          elm.outerHTML
+        `each expects an array or object, got ${JSON.stringify(items)} on ${elm.outerHTML
         }`
       );
       return [];
@@ -376,6 +375,9 @@ const htmxJson = (function () {
     const existingList = [];
 
     let existingComment = elm.nextSibling;
+    while (existingComment instanceof Text) {
+      existingComment = existingComment.nextSibling;
+    }
     while (existingComment instanceof Comment && existingComment !== end) {
       existingList.push(existingComment);
       existingComment = findComment(existingComment) ?? end;
@@ -392,42 +394,81 @@ const htmxJson = (function () {
   function handleIf(elm, $ctx, parentEnd) {
     const ifGetter = getGetter(elm, "json-if");
     if (!ifGetter) return null;
-    const otherwise = getOrCreate(elm, "json-else", findTemplate);
+    const ifTmpl = elm;
+    const elseIfTmpls = [];
+    let tmpl = elm;
+    while (true) {
+      const found = getNextTemplateWithAttribute(tmpl, "json-else-if");
+      if (!found) break;
+      tmpl = found;
+      elseIfTmpls.push(found);
+    }
+    const elseTmpl = getNextTemplateWithAttribute(tmpl, "json-else");
 
-    const elmOrOtherwise = otherwise ?? elm;
+    const comment = getOrCreateNextComment(elseTmpl ?? tmpl, parentEnd);
 
     const end = getOrCreate(
-      elmOrOtherwise,
+      comment,
       "/json-if",
       findOrCreateComment,
       parentEnd
     );
-    if (!end) return elmOrOtherwise;
+    if (!end) throw new Error("Could not create end, that is weird...");
+
 
     if (ifGetter($ctx)) {
-      if (get(elm, "if") !== true) {
-        set(elm, "if", true);
-        removeFromTo(elmOrOtherwise.nextSibling, end);
-        elm.parentNode?.insertBefore(elm.content.cloneNode(true), end);
+      if (comment.data !== 'json-if') {
+        comment.data = 'json-if';
+        removeFromTo(comment.nextSibling, end);
+        ifTmpl.parentNode?.insertBefore(ifTmpl.content.cloneNode(true), end);
       }
-      swapFromTo(elmOrOtherwise.nextSibling, end, $ctx);
-    } else if (otherwise) {
-      if (get(elm, "if") !== false) {
-        set(elm, "if", false);
-        removeFromTo(elmOrOtherwise.nextSibling, end);
-        otherwise.parentNode?.insertBefore(
-          otherwise.content.cloneNode(true),
-          end
-        );
-      }
-      swapFromTo(elmOrOtherwise.nextSibling, end, $ctx);
     } else {
-      if (get(elm, "if") !== false) {
-        set(elm, "if", false);
-        removeFromTo(elmOrOtherwise.nextSibling, end);
+      let i = 0;
+      for (; i < elseIfTmpls.length; i++) {
+        const elseIfTmpl = elseIfTmpls[i];
+        const getter = getGetter(elseIfTmpl, 'json-else-if');
+        if (getter?.($ctx)) {
+          const commentValue = `json-else-if ${i}`;
+          if (comment.data !== commentValue) {
+            comment.data = commentValue;
+            removeFromTo(comment.nextSibling, end);
+            elseIfTmpl.parentNode?.insertBefore(elseIfTmpl.content.cloneNode(true), end);
+          }
+          break;
+        }
+      }
+      if (i === elseIfTmpls.length && comment.data !== 'json-else') {
+        comment.data = 'json-else'
+        removeFromTo(comment.nextSibling, end);
+        if (elseTmpl) {
+          elseTmpl.parentNode?.insertBefore(
+            elseTmpl.content.cloneNode(true),
+            end
+          );
+        }
       }
     }
+    swapFromTo(comment.nextSibling, end, $ctx);
     return end;
+  }
+
+  /**
+   * @param {ChildNode} elm
+   * @param {Node} [end]
+   * @returns {Comment}
+   */
+  function getOrCreateNextComment(elm, end) {
+    let comment = elm.nextSibling;
+    while (comment instanceof Text) {
+      comment = comment.nextSibling;
+    }
+    if (comment instanceof Comment && comment !== end) {
+      return comment
+    } else {
+      const comment = document.createComment('');
+      elm.parentNode?.insertBefore(comment, elm.nextSibling);
+      return comment;
+    }
   }
 
   /**
@@ -444,11 +485,11 @@ const htmxJson = (function () {
 
   /**
    * @param {HTMLTemplateElement} elm
-   * @param {string} key
+   * @param {string} attr
    */
-  function findTemplate(elm, key) {
+  function getNextTemplateWithAttribute(elm, attr) {
     return elm.nextElementSibling instanceof HTMLTemplateElement &&
-      elm.nextElementSibling.hasAttribute(key)
+      elm.nextElementSibling.hasAttribute(attr)
       ? elm.nextElementSibling
       : undefined;
   }
