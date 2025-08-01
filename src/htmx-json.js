@@ -47,8 +47,11 @@ const htmxJson = (function () {
    *   $index: number | undefined,
    *   $key: string | undefined
    * }} Context
-   *
-   * @typedef {($ctx: Context) => any} Getter
+   */
+
+  /**
+   * @typedef {($ctx: C) => any} Getter<C>
+   * @template {Context} [C=Context]
    */
 
   /**
@@ -140,9 +143,21 @@ const htmxJson = (function () {
           return $ctx;
         });
       } else if (attr.name === "json-ignore") {
-        result.push(($ctx) => false);
-        // stop processing of the array
-        break;
+        const getter = createGetter(attr.value, '$prev');
+        let $prev = undefined;
+        result.push(($ctx) => {
+          if (getter === null) return false;
+          if (getter({ ...$ctx, $prev })) {
+            return false;
+          } else {
+            $prev = $ctx.$this;
+            return $ctx;
+          }
+        });
+        if (getter === null) {
+          // stop processing of the array
+          break;
+        }
       } else if (attr.name === "json-with") {
         const getter = createGetter(attr.value);
         if (!getter) continue;
@@ -608,15 +623,16 @@ const htmxJson = (function () {
   }
 
   /**
-   *
+   * @template {string[]} V
    * @param {String | null} value
-   * @returns {Getter | null}
+   * @param {V} vars
+   * @returns {Getter<Record<V[number], any> & Context> | null}
    */
-  function createGetter(value) {
+  function createGetter(value, ...vars) {
     if (!value) return null;
     return /** @type {Getter} */ (
       new Function(
-        "{$this, $parent, $index, $key}",
+        `{$this, $parent, $index, $key, ${vars.join(', ')}}`,
         `
         try {
           with ($this){
