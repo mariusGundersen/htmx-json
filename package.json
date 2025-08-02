@@ -4,10 +4,11 @@
   "main": "dist/htmx-json.min.js",
   "unpkg": "dist/htmx-json.min.js",
   "scripts": {
+    "build": "node ./scripts/build.mjs",
     "test": "karma start",
     "benchmark": "karma start karma.benchmark.conf.js",
     "preversion": "karma start --single-run && karma start karma.benchmark.conf.js --single-run",
-    "version": "node ./scripts/build.mjs && git add -A",
+    "version": "npm run build && git add -A",
     "docs": "npx @11ty/eleventy  --pathprefix=/htmx-json/",
     "docs:dev": "npx @11ty/eleventy --serve"
   },
