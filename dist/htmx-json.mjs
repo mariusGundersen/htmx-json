@@ -1,9 +1,8 @@
 // @ts-check
 
+var HTMX_JSON_DEBUG = true;
 const htmxJson = (function () {
-  // @ts-ignore
   if (typeof htmx !== "undefined") {
-    // @ts-ignore
     htmx.defineExtension("json-swap", {
       isInlineSwap: function (/** @type {string} */ swapStyle) {
         return swapStyle === "json";
@@ -124,7 +123,12 @@ const htmxJson = (function () {
       if (attr.name.startsWith("@")) {
         const name = attr.name.substring(1);
         const getter = createGetter(attr.value);
-        if (!getter) continue;
+
+        if (HTMX_JSON_DEBUG && !getter) {
+          console.warn(`Missing value for attribute ${attr.name}`, elm);
+          continue;
+        } else if (!getter) continue;
+
         result.push(($ctx) => {
           const value = getter($ctx);
           if (value === null) {
@@ -136,14 +140,19 @@ const htmxJson = (function () {
         });
       } else if (attr.name.startsWith(".")) {
         const getter = createGetter(attr.value);
-        if (!getter) continue;
+
+        if (HTMX_JSON_DEBUG && !getter) {
+          console.warn(`Missing value for attribute ${attr.name}`, elm);
+          continue;
+        } else if (!getter) continue;
+
         const setter = createSetter(kebabChainToCamelChain(attr.name));
         result.push(($ctx) => {
           setter(elm, getter($ctx));
           return $ctx;
         });
       } else if (attr.name === "json-ignore") {
-        const getter = createGetter(attr.value, '$prev');
+        const getter = createGetter(attr.value, "$prev");
         let $prev = undefined;
         result.push(($ctx) => {
           if (getter === null) return false;
@@ -160,27 +169,47 @@ const htmxJson = (function () {
         }
       } else if (attr.name === "json-with") {
         const getter = createGetter(attr.value);
-        if (!getter) continue;
+
+        if (HTMX_JSON_DEBUG && !getter) {
+          console.warn("Missing value for attribute json-with", elm);
+          continue;
+        } else if (!getter) continue;
+
         result.push(($ctx) => {
           return createContext(getter($ctx), $ctx);
         });
       } else if (attr.name === "json-text") {
         const getter = createGetter(attr.value);
-        if (!getter) continue;
+
+        if (HTMX_JSON_DEBUG && !getter) {
+          console.warn("Missing value for attribute json-text", elm);
+          continue;
+        } else if (!getter) continue;
+
         result.push(($ctx) => {
           elm.textContent = getter($ctx);
           return $ctx;
         });
       } else if (attr.name === "json-show") {
         const getter = createGetter(attr.value);
-        if (!getter) continue;
+
+        if (HTMX_JSON_DEBUG && !getter) {
+          console.warn("Missing value for attribute json-show", elm);
+          continue;
+        } else if (!getter) continue;
+
         result.push(($ctx) => {
           elm.style.display = getter($ctx) ? "" : "none";
           return $ctx;
         });
       } else if (attr.name === "json-hide") {
         const getter = createGetter(attr.value);
-        if (!getter) continue;
+
+        if (HTMX_JSON_DEBUG && !getter) {
+          console.warn("Missing value for attribute json-hide", elm);
+          continue;
+        } else if (!getter) continue;
+
         result.push(($ctx) => {
           elm.style.display = getter($ctx) ? "none" : "";
           return $ctx;
@@ -360,10 +389,10 @@ const htmxJson = (function () {
         item,
       ]);
     } else if (typeof items === "object") {
-      if (keyGetter)
+      if (HTMX_JSON_DEBUG && keyGetter)
         console.warn("json-key is not used when json-each is an object");
       return Object.entries(items).map(([key, value]) => {
-        if (Number(key) >= 0)
+        if (HTMX_JSON_DEBUG && Number(key) >= 0)
           console.warn(
             `Objects with integer keys will be iterated over in unexpected order!\nFound key ${key} in ${JSON.stringify(
               items
@@ -372,10 +401,13 @@ const htmxJson = (function () {
         return [key, value];
       });
     } else {
-      console.warn(
-        `each expects an array or object, got ${JSON.stringify(items)} on ${elm.outerHTML
-        }`
-      );
+      if (HTMX_JSON_DEBUG) {
+        console.warn(
+          `each expects an array or object, got ${JSON.stringify(items)} on ${
+            elm.outerHTML
+          }`
+        );
+      }
       return [];
     }
   }
@@ -408,7 +440,12 @@ const htmxJson = (function () {
    */
   function handleIf(elm, $ctx, parentEnd) {
     const ifGetter = getGetter(elm, "json-if");
-    if (!ifGetter) return null;
+
+    if (HTMX_JSON_DEBUG && !ifGetter) {
+      console.warn("Missing value for attribute json-if", elm);
+      return null;
+    } else if (!ifGetter) return null;
+
     const ifTmpl = elm;
     const elseIfTmpls = [];
     let tmpl = elm;
@@ -420,6 +457,10 @@ const htmxJson = (function () {
     }
     const elseTmpl = getNextTemplateWithAttribute(tmpl, "json-else");
 
+    if (HTMX_JSON_DEBUG && elseTmpl?.getAttribute("json-else")) {
+      console.warn("json-else should not have a value", elseTmpl);
+    }
+
     const comment = getOrCreateNextComment(elseTmpl ?? tmpl, parentEnd);
 
     const end = getOrCreate(
@@ -430,10 +471,9 @@ const htmxJson = (function () {
     );
     if (!end) throw new Error("Could not create end, that is weird...");
 
-
     if (ifGetter($ctx)) {
-      if (comment.data !== 'json-if') {
-        comment.data = 'json-if';
+      if (comment.data !== "json-if") {
+        comment.data = "json-if";
         removeFromTo(comment.nextSibling, end);
         ifTmpl.parentNode?.insertBefore(ifTmpl.content.cloneNode(true), end);
       }
@@ -441,19 +481,27 @@ const htmxJson = (function () {
       let i = 0;
       for (; i < elseIfTmpls.length; i++) {
         const elseIfTmpl = elseIfTmpls[i];
-        const getter = getGetter(elseIfTmpl, 'json-else-if');
+        const getter = getGetter(elseIfTmpl, "json-else-if");
+
+        if (HTMX_JSON_DEBUG && !getter) {
+          console.warn("Missing value for attribute json-else-if", elseIfTmpl);
+        }
+
         if (getter?.($ctx)) {
           const commentValue = `json-else-if ${i}`;
           if (comment.data !== commentValue) {
             comment.data = commentValue;
             removeFromTo(comment.nextSibling, end);
-            elseIfTmpl.parentNode?.insertBefore(elseIfTmpl.content.cloneNode(true), end);
+            elseIfTmpl.parentNode?.insertBefore(
+              elseIfTmpl.content.cloneNode(true),
+              end
+            );
           }
           break;
         }
       }
-      if (i === elseIfTmpls.length && comment.data !== 'json-else') {
-        comment.data = 'json-else'
+      if (i === elseIfTmpls.length && comment.data !== "json-else") {
+        comment.data = "json-else";
         removeFromTo(comment.nextSibling, end);
         if (elseTmpl) {
           elseTmpl.parentNode?.insertBefore(
@@ -478,9 +526,9 @@ const htmxJson = (function () {
       comment = comment.nextSibling;
     }
     if (comment instanceof Comment && comment !== end) {
-      return comment
+      return comment;
     } else {
-      const comment = document.createComment('');
+      const comment = document.createComment("");
       elm.parentNode?.insertBefore(comment, elm.nextSibling);
       return comment;
     }
@@ -632,7 +680,7 @@ const htmxJson = (function () {
     if (!value) return null;
     return /** @type {Getter} */ (
       new Function(
-        `{$this, $parent, $index, $key, ${vars.join(', ')}}`,
+        `{$this, $parent, $index, $key, ${vars.join(", ")}}`,
         `
         try {
           with ($this){
