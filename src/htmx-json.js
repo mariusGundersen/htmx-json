@@ -181,12 +181,12 @@ const htmxJson = (function () {
         } else if (!getter) continue;
 
         result.push(($ctx) => {
-          const ctx = getter({ ...$ctx, $prev });
-          if (!ctx) {
+          const newThis = getter({ ...$ctx, $prev });
+          if (!newThis) {
             return false;
           }
-          $prev = $ctx.$this;
-          return createContext(ctx, $ctx);
+          $prev = newThis;
+          return createContext(newThis, $ctx);
         });
       } else if (attr.name === "json-text") {
         const getter = createGetter(attr.value);

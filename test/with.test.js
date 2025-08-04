@@ -59,12 +59,15 @@ describe("with", () => {
   });
 
   it("should be able to use $prev", () => {
-    div.innerHTML = `<div json-with="{...$prev?.obj, ...obj}">$\{value}</div>`;
+    div.innerHTML = `<div json-with="{...$prev, ...obj}">$\{value}</div>`;
     htmxJson.swap(div, {
       obj: { value: 4 },
     });
+    htmxJson.swap(div, {
+      obj: {}
+    })
     expect(div.innerHTML).toBe(
-      `<div json-with="{...$prev?.obj, ...obj}">4</div>`
+      `<div json-with="{...$prev, ...obj}">4</div>`
     );
   });
 });
