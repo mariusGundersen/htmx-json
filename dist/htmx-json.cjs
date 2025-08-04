@@ -228,26 +228,45 @@ const htmxJson = (function () {
         if (elm instanceof HTMLInputElement) {
           if (elm.type === "checkbox") {
             result.push(($ctx) => {
-              if (attr.value in $ctx.$this) {
-                elm.checked = $ctx.$this[attr.value];
+              if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
+                const value = $ctx.$this[attr.value];
+                if (value !== undefined) {
+                  elm.checked = value;
+                }
               }
               return $ctx;
             });
           } else if (elm.type === "radio") {
             result.push(($ctx) => {
-              if (attr.value in $ctx.$this) {
-                elm.checked = $ctx.$this[attr.value] === elm.value;
+              if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
+                const value = $ctx.$this[attr.value];
+                if (value !== undefined) {
+                  elm.checked = value === elm.value;
+                }
               }
               return $ctx;
             });
           } else {
             result.push(($ctx) => {
-              if (attr.value in $ctx.$this) {
-                elm.value = $ctx.$this[attr.value];
+              if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
+                const value = $ctx.$this[attr.value];
+                if (value !== undefined) {
+                  elm.value = value;
+                }
               }
               return $ctx;
             });
           }
+        } else if (elm instanceof HTMLSelectElement || elm instanceof HTMLTextAreaElement) {
+          result.push(($ctx) => {
+            if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
+              const value = $ctx.$this[attr.value];
+              if (value !== undefined) {
+                elm.value = value;
+              }
+            }
+            return $ctx;
+          });
         }
       }
     }
