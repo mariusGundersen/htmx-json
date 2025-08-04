@@ -69,7 +69,7 @@ const htmxJson = (function () {
     } else if (elm instanceof HTMLTemplateElement) {
       return handleEach(elm, $ctx, end) ?? handleIf(elm, $ctx, end) ?? elm;
     } else if (elm instanceof HTMLElement) {
-      /** @type {false | Context} */
+      /** @type {false | null | Context} */
       let nextCtx = $ctx;
       const attrs = getOrCreate(elm, "attributes", createAttributeHandler);
       for (const attr of attrs) {
@@ -77,10 +77,14 @@ const htmxJson = (function () {
         nextCtx = attr(nextCtx);
       }
 
-      if (!nextCtx) {
+      if (nextCtx === null) {
         // there is a json-ignore in the attribute list
         // if that's the only attr then we can ignore this element completely
         return attrs.length === 1 ? null : elm;
+      } else if (nextCtx === false) {
+        // false means ignore this time, but don't ignore this subtree, as it
+        // might not be ignored next time
+        return elm;
       } else {
         let allIgnored = true;
         let child = elm.firstChild;
@@ -114,10 +118,10 @@ const htmxJson = (function () {
 
   /**
    * @param {HTMLElement} elm
-   * @returns {Array<($ctx: Context) => (Context | false)>}
+   * @returns {Array<($ctx: Context) => (Context | false | null)>}
    */
   function createAttributeHandler(elm) {
-    /** @type {Array<($ctx: Context) => (Context | false)>} */
+    /** @type {Array<($ctx: Context) => (Context | false | null)>} */
     const result = [];
     for (const attr of elm.attributes) {
       if (attr.name.startsWith("@")) {
@@ -155,7 +159,7 @@ const htmxJson = (function () {
         const getter = createGetter(attr.value, "$prev");
         let $prev = undefined;
         result.push(($ctx) => {
-          if (getter === null) return false;
+          if (getter === null) return null;
           if (getter({ ...$ctx, $prev })) {
             return false;
           } else {
@@ -168,7 +172,8 @@ const htmxJson = (function () {
           break;
         }
       } else if (attr.name === "json-with") {
-        const getter = createGetter(attr.value);
+        const getter = createGetter(attr.value, "$prev");
+        let $prev = undefined;
 
         if (HTMX_JSON_DEBUG && !getter) {
           console.warn("Missing value for attribute json-with", elm);
@@ -176,7 +181,12 @@ const htmxJson = (function () {
         } else if (!getter) continue;
 
         result.push(($ctx) => {
-          return createContext(getter($ctx), $ctx);
+          const ctx = getter({ ...$ctx, $prev });
+          if (!ctx) {
+            return false;
+          }
+          $prev = $ctx.$this;
+          return createContext(ctx, $ctx);
         });
       } else if (attr.name === "json-text") {
         const getter = createGetter(attr.value);
@@ -403,8 +413,7 @@ const htmxJson = (function () {
     } else {
       if (HTMX_JSON_DEBUG) {
         console.warn(
-          `each expects an array or object, got ${JSON.stringify(items)} on ${
-            elm.outerHTML
+          `each expects an array or object, got ${JSON.stringify(items)} on ${elm.outerHTML
           }`
         );
       }
