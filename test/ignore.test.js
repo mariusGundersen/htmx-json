@@ -38,6 +38,13 @@ describe("ignore", () => {
     expect(div.innerHTML).toBe(`<span json-ignore="false">test</span>`);
   });
 
+  it("should not ignore when falsy", () => {
+    div.innerHTML = `<span json-ignore="ignore">\${value}</span>`;
+    htmxJson.swap(div, { ignore: true, value: "test1" });
+    htmxJson.swap(div, { ignore: false, value: "test2" });
+    expect(div.innerHTML).toBe(`<span json-ignore="ignore">test2</span>`);
+  });
+
   it("should be possible to compare $this with $prev", () => {
     div.innerHTML = `<span json-ignore="$this.key === $prev?.key">\${value}</span>`;
     htmxJson.swap(div, { value: "test", key: 'a' });

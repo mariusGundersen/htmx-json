@@ -1,5 +1,8 @@
 describe("with", () => {
-  const div = document.createElement("div");
+  let div = document.createElement("div");
+  beforeEach(() => {
+    div = document.createElement("div");
+  })
 
   it("should go into an object", () => {
     div.innerHTML = `<div json-with="obj">\${value}</div>`;
@@ -42,6 +45,26 @@ describe("with", () => {
     });
     expect(div.innerHTML).toBe(
       `<div json-with="obj" .text-content="value">4</div>`
+    );
+  });
+
+  it("should work like ignore, if it returns undefined, null or false", () => {
+    div.innerHTML = `<div json-with="obj">\${value}</div>`;
+    htmxJson.swap(div, {
+      obj: undefined,
+    });
+    expect(div.innerHTML).toBe(
+      `<div json-with="obj">\${value}</div>`
+    );
+  });
+
+  it("should be able to use $prev", () => {
+    div.innerHTML = `<div json-with="{...$prev?.obj, ...obj}">$\{value}</div>`;
+    htmxJson.swap(div, {
+      obj: { value: 4 },
+    });
+    expect(div.innerHTML).toBe(
+      `<div json-with="{...$prev?.obj, ...obj}">4</div>`
     );
   });
 });
