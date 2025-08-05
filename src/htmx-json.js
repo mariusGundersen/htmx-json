@@ -74,7 +74,8 @@ const htmxJson = (function () {
       const attrs = getOrCreate(elm, "attributes", createAttributeHandler);
       for (const attr of attrs) {
         if (!nextCtx) break;
-        nextCtx = attr(nextCtx);
+        const ctx = attr(nextCtx);
+        nextCtx = ctx === undefined ? nextCtx : ctx;
       }
 
       if (nextCtx === null) {
@@ -116,12 +117,129 @@ const htmxJson = (function () {
       : null;
   }
 
+  /** @typedef {($ctx: Context) => (Context | false | null | void)} AttributeHandler */
+
+  /** @type {Record<string, (elm: HTMLElement, attr: Attr, createGetter: CreateGetter) => (AttributeHandler | undefined | null)>} */
+  const directives = {
+    ['json-ignore'](elm, attr, createGetter) {
+      const getter = createGetter(attr.value, "$prev");
+      let $prev = undefined;
+      if (getter === null) {
+        return magicIgnoreGetter;
+      }
+      return ($ctx) => {
+        if (getter({ ...$ctx, $prev })) {
+          return false;
+        } else {
+          $prev = $ctx.$this;
+        }
+      };
+    },
+    ['json-with'](elm, attr, createGetter) {
+      const getter = createGetter(attr.value, "$prev");
+      let $prev = undefined;
+
+      if (HTMX_JSON_DEBUG && !getter) {
+        console.warn("Missing value for attribute json-with", elm);
+        return null;
+      } else if (!getter) return null;
+
+      return ($ctx) => {
+        const newThis = getter({ ...$ctx, $prev });
+        if (!newThis) {
+          return false;
+        }
+        $prev = newThis;
+        return createContext(newThis, $ctx);
+      };
+    },
+    ['json-text'](elm, attr, createGetter) {
+      const getter = createGetter(attr.value);
+
+      if (HTMX_JSON_DEBUG && !getter) {
+        console.warn("Missing value for attribute json-text", elm);
+        return null;
+      } else if (!getter) return null;
+
+      return ($ctx) => {
+        elm.textContent = getter($ctx);
+      };
+    },
+    ['json-show'](elm, attr, createGetter) {
+      const getter = createGetter(attr.value);
+
+      if (HTMX_JSON_DEBUG && !getter) {
+        console.warn("Missing value for attribute json-show", elm);
+        return null;
+      } else if (!getter) return null;
+
+      return ($ctx) => {
+        elm.style.display = getter($ctx) ? "" : "none";
+      };
+    },
+    ['json-hide'](elm, attr, createGetter) {
+      const getter = createGetter(attr.value);
+
+      if (HTMX_JSON_DEBUG && !getter) {
+        console.warn("Missing value for attribute json-hide", elm);
+        return null;
+      } else if (!getter) return null;
+
+      return ($ctx) => {
+        elm.style.display = getter($ctx) ? "none" : "";
+      };
+    },
+    ['name'](elm, attr, createGetter) {
+      if (elm instanceof HTMLInputElement) {
+        if (elm.type === "checkbox") {
+          return ($ctx) => {
+            if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
+              const value = $ctx.$this[attr.value];
+              if (value !== undefined) {
+                elm.checked = value;
+              }
+            }
+          };
+        } else if (elm.type === "radio") {
+          return ($ctx) => {
+            if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
+              const value = $ctx.$this[attr.value];
+              if (value !== undefined) {
+                elm.checked = value === elm.value;
+              }
+            }
+          };
+        } else {
+          return ($ctx) => {
+            if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
+              const value = $ctx.$this[attr.value];
+              if (value !== undefined) {
+                elm.value = value;
+              }
+            }
+          };
+        }
+      } else if (elm instanceof HTMLSelectElement || elm instanceof HTMLTextAreaElement) {
+        return ($ctx) => {
+          if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
+            const value = $ctx.$this[attr.value];
+            if (value !== undefined) {
+              elm.value = value;
+            }
+          }
+        };
+      }
+    }
+  }
+
+  const magicIgnoreGetter = () => null;
+
   /**
    * @param {HTMLElement} elm
-   * @returns {Array<($ctx: Context) => (Context | false | null)>}
+   * @returns {Array<AttributeHandler>}
    */
   function createAttributeHandler(elm) {
-    /** @type {Array<($ctx: Context) => (Context | false | null)>} */
+    /** @type {Array<AttributeHandler>} */
     const result = [];
     for (const attr of elm.attributes) {
       if (attr.name.startsWith("@")) {
@@ -155,119 +273,12 @@ const htmxJson = (function () {
           setter(elm, getter($ctx));
           return $ctx;
         });
-      } else if (attr.name === "json-ignore") {
-        const getter = createGetter(attr.value, "$prev");
-        let $prev = undefined;
-        result.push(($ctx) => {
-          if (getter === null) return null;
-          if (getter({ ...$ctx, $prev })) {
-            return false;
-          } else {
-            $prev = $ctx.$this;
-            return $ctx;
-          }
-        });
-        if (getter === null) {
-          // stop processing of the array
-          break;
+      } else {
+        const handler = directives[attr.name]?.(elm, attr, createGetter);
+        if (handler) {
+          result.push(handler);
         }
-      } else if (attr.name === "json-with") {
-        const getter = createGetter(attr.value, "$prev");
-        let $prev = undefined;
-
-        if (HTMX_JSON_DEBUG && !getter) {
-          console.warn("Missing value for attribute json-with", elm);
-          continue;
-        } else if (!getter) continue;
-
-        result.push(($ctx) => {
-          const newThis = getter({ ...$ctx, $prev });
-          if (!newThis) {
-            return false;
-          }
-          $prev = newThis;
-          return createContext(newThis, $ctx);
-        });
-      } else if (attr.name === "json-text") {
-        const getter = createGetter(attr.value);
-
-        if (HTMX_JSON_DEBUG && !getter) {
-          console.warn("Missing value for attribute json-text", elm);
-          continue;
-        } else if (!getter) continue;
-
-        result.push(($ctx) => {
-          elm.textContent = getter($ctx);
-          return $ctx;
-        });
-      } else if (attr.name === "json-show") {
-        const getter = createGetter(attr.value);
-
-        if (HTMX_JSON_DEBUG && !getter) {
-          console.warn("Missing value for attribute json-show", elm);
-          continue;
-        } else if (!getter) continue;
-
-        result.push(($ctx) => {
-          elm.style.display = getter($ctx) ? "" : "none";
-          return $ctx;
-        });
-      } else if (attr.name === "json-hide") {
-        const getter = createGetter(attr.value);
-
-        if (HTMX_JSON_DEBUG && !getter) {
-          console.warn("Missing value for attribute json-hide", elm);
-          continue;
-        } else if (!getter) continue;
-
-        result.push(($ctx) => {
-          elm.style.display = getter($ctx) ? "none" : "";
-          return $ctx;
-        });
-      } else if (attr.name === "name") {
-        if (elm instanceof HTMLInputElement) {
-          if (elm.type === "checkbox") {
-            result.push(($ctx) => {
-              if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
-                const value = $ctx.$this[attr.value];
-                if (value !== undefined) {
-                  elm.checked = value;
-                }
-              }
-              return $ctx;
-            });
-          } else if (elm.type === "radio") {
-            result.push(($ctx) => {
-              if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
-                const value = $ctx.$this[attr.value];
-                if (value !== undefined) {
-                  elm.checked = value === elm.value;
-                }
-              }
-              return $ctx;
-            });
-          } else {
-            result.push(($ctx) => {
-              if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
-                const value = $ctx.$this[attr.value];
-                if (value !== undefined) {
-                  elm.value = value;
-                }
-              }
-              return $ctx;
-            });
-          }
-        } else if (elm instanceof HTMLSelectElement || elm instanceof HTMLTextAreaElement) {
-          result.push(($ctx) => {
-            if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
-              const value = $ctx.$this[attr.value];
-              if (value !== undefined) {
-                elm.value = value;
-              }
-            }
-            return $ctx;
-          });
-        }
+        if (handler === magicIgnoreGetter) break;
       }
     }
     return result;
@@ -698,6 +709,8 @@ const htmxJson = (function () {
     );
   }
 
+  /** @typedef {typeof createGetter} CreateGetter */
+
   /**
    * @template {string[]} V
    * @param {String | null} value
@@ -767,5 +780,6 @@ const htmxJson = (function () {
     swap(elm, data) {
       swap(elm, createContext(data));
     },
+    directives
   };
 })();

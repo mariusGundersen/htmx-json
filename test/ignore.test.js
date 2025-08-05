@@ -19,10 +19,10 @@ describe("ignore", () => {
   });
 
   it("should ignore subsequent properties", () => {
-    div.innerHTML = `<span json-ignore .text-content="value"></span>`;
+    div.innerHTML = `<span json-ignore .text-content="value" @data-super="super()"></span>`;
     htmxJson.swap(div, { value: "test" });
     expect(div.innerHTML).toBe(
-      `<span json-ignore="" .text-content="value"></span>`
+      `<span json-ignore="" .text-content="value" @data-super="super()"></span>`
     );
   });
 
