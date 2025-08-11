@@ -58,7 +58,7 @@ const htmxJson = (function () {
    * @param {Node} elm
    * @param {Context} $ctx
    * @param {Node} [end]
-   * @returns {Node | null}
+   * @returns {Node | null} `null` if there is nothing to swap here
    */
   function swap(elm, $ctx, end) {
     if (elm instanceof Text) {
@@ -87,14 +87,16 @@ const htmxJson = (function () {
         // might not be ignored next time
         return elm;
       } else {
-        let allIgnored = true;
-        let child = elm.firstChild;
-        while (child) {
-          const result = swap(child, nextCtx);
-          allIgnored &&= result === null;
-          child = (result ?? child).nextSibling;
-        }
+        // Swap every child of this element
+        const allIgnored = swapFromTo(
+          elm.firstChild,
+          undefined,
+          nextCtx);
 
+        // if none of the children or this element
+        // need swapping, then add an ignore attribute
+        // and tell the parent node that it this is not
+        // a node of interest
         if (allIgnored && attrs.length === 0) {
           set(elm, "attributes", [() => false]);
           return null;
@@ -117,99 +119,172 @@ const htmxJson = (function () {
       : null;
   }
 
-  /** @typedef {($ctx: Context) => (Context | false | null | void)} AttributeHandler */
+  /**
+   * @typedef {($ctx: Context) => (Context | false | null | void)} AttributeHandler
+   */
 
-  /** @type {Record<string, (elm: HTMLElement, attr: Attr, createGetter: CreateGetter) => (AttributeHandler | undefined | null)>} */
-  const directives = {
-    ['json-ignore'](elm, attr, createGetter) {
-      const getter = createGetter(attr.value, "$prev");
-      let $prev = undefined;
-      if (getter === null) {
-        return magicIgnoreGetter;
+  /**
+   * @typedef {(elm: HTMLElement, attr: Attr, createGetter: CreateGetter) => (AttributeHandler | undefined | null)} AttributeHandlerFactory
+   */
+
+
+  /** @type {Array<{match: (attr: Attr) => boolean, factory: AttributeHandlerFactory}>} */
+  const directives = [
+    {
+      match: (attr) => attr.name.startsWith("@"),
+      factory(elm, attr, createGetter) {
+        const name = attr.name.substring(1);
+        const getter = createGetter(attr.value);
+
+        if (HTMX_JSON_DEBUG && !getter) {
+          console.warn(`Missing value for attribute ${attr.name}`, elm);
+          return undefined;
+        } else if (!getter) return undefined;
+
+        return ($ctx) => {
+          const value = getter($ctx);
+          if (value === null) {
+            elm.removeAttribute(name);
+          } else {
+            elm.setAttribute(name, value);
+          }
+          return $ctx;
+        };
       }
-      return ($ctx) => {
-        if (getter({ ...$ctx, $prev })) {
-          return false;
-        } else {
-          $prev = $ctx.$this;
+    },
+    {
+      match: (attr) => attr.name.startsWith('.'),
+      factory(elm, attr, createGetter) {
+        const getter = createGetter(attr.value);
+
+        if (HTMX_JSON_DEBUG && !getter) {
+          console.warn(`Missing value for attribute ${attr.name}`, elm);
+          return undefined;
+        } else if (!getter) return undefined;
+
+        const setter = createSetter(kebabChainToCamelChain(attr.name));
+        return ($ctx) => {
+          setter(elm, getter($ctx));
+          return $ctx;
+        };
+      }
+    },
+    {
+      match: attr => attr.name === 'json-ignore',
+      factory(elm, attr, createGetter) {
+        const getter = createGetter(attr.value, "$prev");
+        let $prev = undefined;
+        if (getter === null) {
+          return null;
         }
-      };
+        return ($ctx) => {
+          if (getter({ ...$ctx, $prev })) {
+            return false;
+          } else {
+            $prev = $ctx.$this;
+          }
+        };
+      },
     },
-    ['json-with'](elm, attr, createGetter) {
-      const getter = createGetter(attr.value, "$prev");
-      let $prev = undefined;
+    {
+      match: attr => attr.name === 'json-with',
+      factory(elm, attr, createGetter) {
+        const getter = createGetter(attr.value, "$prev");
+        let $prev = undefined;
 
-      if (HTMX_JSON_DEBUG && !getter) {
-        console.warn("Missing value for attribute json-with", elm);
-        return null;
-      } else if (!getter) return null;
+        if (HTMX_JSON_DEBUG && !getter) {
+          console.warn("Missing value for attribute json-with", elm);
+          return undefined;
+        } else if (!getter) return undefined;
 
-      return ($ctx) => {
-        const newThis = getter({ ...$ctx, $prev });
-        if (!newThis) {
-          return false;
-        }
-        $prev = newThis;
-        return createContext(newThis, $ctx);
-      };
+        return ($ctx) => {
+          const newThis = getter({ ...$ctx, $prev });
+          if (!newThis) {
+            return false;
+          }
+          $prev = newThis;
+          return createContext(newThis, $ctx);
+        };
+      },
     },
-    ['json-text'](elm, attr, createGetter) {
-      const getter = createGetter(attr.value);
+    {
+      match: attr => attr.name === 'json-text',
+      factory(elm, attr, createGetter) {
+        const getter = createGetter(attr.value);
 
-      if (HTMX_JSON_DEBUG && !getter) {
-        console.warn("Missing value for attribute json-text", elm);
-        return null;
-      } else if (!getter) return null;
+        if (HTMX_JSON_DEBUG && !getter) {
+          console.warn("Missing value for attribute json-text", elm);
+          return undefined;
+        } else if (!getter) return undefined;
 
-      return ($ctx) => {
-        elm.textContent = getter($ctx);
-      };
+        return ($ctx) => {
+          elm.textContent = getter($ctx);
+        };
+      },
     },
-    ['json-show'](elm, attr, createGetter) {
-      const getter = createGetter(attr.value);
+    {
+      match: attr => attr.name === 'json-show',
+      factory(elm, attr, createGetter) {
+        const getter = createGetter(attr.value);
 
-      if (HTMX_JSON_DEBUG && !getter) {
-        console.warn("Missing value for attribute json-show", elm);
-        return null;
-      } else if (!getter) return null;
+        if (HTMX_JSON_DEBUG && !getter) {
+          console.warn("Missing value for attribute json-show", elm);
+          return undefined;
+        } else if (!getter) return undefined;
 
-      return ($ctx) => {
-        elm.style.display = getter($ctx) ? "" : "none";
-      };
+        return ($ctx) => {
+          elm.style.display = getter($ctx) ? "" : "none";
+        };
+      },
     },
-    ['json-hide'](elm, attr, createGetter) {
-      const getter = createGetter(attr.value);
+    {
+      match: attr => attr.name === 'json-hide',
+      factory(elm, attr, createGetter) {
+        const getter = createGetter(attr.value);
 
-      if (HTMX_JSON_DEBUG && !getter) {
-        console.warn("Missing value for attribute json-hide", elm);
-        return null;
-      } else if (!getter) return null;
+        if (HTMX_JSON_DEBUG && !getter) {
+          console.warn("Missing value for attribute json-hide", elm);
+          return undefined;
+        } else if (!getter) return undefined;
 
-      return ($ctx) => {
-        elm.style.display = getter($ctx) ? "none" : "";
-      };
+        return ($ctx) => {
+          elm.style.display = getter($ctx) ? "none" : "";
+        };
+      },
     },
-    ['name'](elm, attr, createGetter) {
-      if (elm instanceof HTMLInputElement) {
-        if (elm.type === "checkbox") {
-          return ($ctx) => {
-            if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
-              const value = $ctx.$this[attr.value];
-              if (value !== undefined) {
-                elm.checked = value;
+    {
+      match: attr => attr.name === 'name',
+      factory(elm, attr, createGetter) {
+        if (elm instanceof HTMLInputElement) {
+          if (elm.type === "checkbox") {
+            return ($ctx) => {
+              if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
+                const value = $ctx.$this[attr.value];
+                if (value !== undefined) {
+                  elm.checked = value;
+                }
               }
-            }
-          };
-        } else if (elm.type === "radio") {
-          return ($ctx) => {
-            if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
-              const value = $ctx.$this[attr.value];
-              if (value !== undefined) {
-                elm.checked = value === elm.value;
+            };
+          } else if (elm.type === "radio") {
+            return ($ctx) => {
+              if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
+                const value = $ctx.$this[attr.value];
+                if (value !== undefined) {
+                  elm.checked = value === elm.value;
+                }
               }
-            }
-          };
-        } else {
+            };
+          } else {
+            return ($ctx) => {
+              if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
+                const value = $ctx.$this[attr.value];
+                if (value !== undefined) {
+                  elm.value = value;
+                }
+              }
+            };
+          }
+        } else if (elm instanceof HTMLSelectElement || elm instanceof HTMLTextAreaElement) {
           return ($ctx) => {
             if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
               const value = $ctx.$this[attr.value];
@@ -219,20 +294,9 @@ const htmxJson = (function () {
             }
           };
         }
-      } else if (elm instanceof HTMLSelectElement || elm instanceof HTMLTextAreaElement) {
-        return ($ctx) => {
-          if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
-            const value = $ctx.$this[attr.value];
-            if (value !== undefined) {
-              elm.value = value;
-            }
-          }
-        };
       }
     }
-  }
-
-  const magicIgnoreGetter = () => null;
+  ]
 
   /**
    * @param {HTMLElement} elm
@@ -241,46 +305,19 @@ const htmxJson = (function () {
   function createAttributeHandler(elm) {
     /** @type {Array<AttributeHandler>} */
     const result = [];
+
+    // Using for of here, so that added attributes from the factories are picked up
     for (const attr of elm.attributes) {
-      if (attr.name.startsWith("@")) {
-        const name = attr.name.substring(1);
-        const getter = createGetter(attr.value);
-
-        if (HTMX_JSON_DEBUG && !getter) {
-          console.warn(`Missing value for attribute ${attr.name}`, elm);
-          continue;
-        } else if (!getter) continue;
-
-        result.push(($ctx) => {
-          const value = getter($ctx);
-          if (value === null) {
-            elm.removeAttribute(name);
-          } else {
-            elm.setAttribute(name, value);
-          }
-          return $ctx;
-        });
-      } else if (attr.name.startsWith(".")) {
-        const getter = createGetter(attr.value);
-
-        if (HTMX_JSON_DEBUG && !getter) {
-          console.warn(`Missing value for attribute ${attr.name}`, elm);
-          continue;
-        } else if (!getter) continue;
-
-        const setter = createSetter(kebabChainToCamelChain(attr.name));
-        result.push(($ctx) => {
-          setter(elm, getter($ctx));
-          return $ctx;
-        });
-      } else {
-        const handler = directives[attr.name]?.(elm, attr, createGetter);
-        if (handler) {
-          result.push(handler);
-        }
-        if (handler === magicIgnoreGetter) break;
+      const handlerFactory = directives.find(f => f.match(attr))?.factory;
+      const handler = handlerFactory?.(elm, attr, createGetter);
+      if (handler) {
+        result.push(handler);
+      } else if (handler === null) {
+        result.push(() => null);
+        break;
       }
     }
+
     return result;
   }
 
@@ -635,15 +672,20 @@ const htmxJson = (function () {
 
   /**
    * @param {Node | null} start
-   * @param {any} end
+   * @param {Node | undefined} end
    * @param {Context} $ctx
    *
-   * @returns {void}
+   * @returns {boolean}
    */
   function swapFromTo(start, end, $ctx) {
+    let allIgnored = true;
     while (start && start !== end) {
-      start = (swap(start, $ctx, end) ?? start).nextSibling;
+      const result = swap(start, $ctx, end);
+      allIgnored &&= result === null;
+      start = (result ?? start).nextSibling;
     }
+
+    return allIgnored;
   }
 
   /**

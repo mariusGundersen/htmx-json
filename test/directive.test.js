@@ -1,16 +1,19 @@
 describe('directives', () => {
-  const classList = (elm, attr, createGetter) => {
-    const getter = createGetter(attr.value);
-    return ($ctx) => {
-      const list = getter($ctx);
-      elm.classList.value = list.join(' ');
+  const classListDirective = {
+    match: (attr) => attr.name === '#class-list',
+    factory: (elm, attr, createGetter) => {
+      const getter = createGetter(attr.value);
+      return ($ctx) => {
+        const list = getter($ctx);
+        elm.classList.value = list.join(' ');
+      }
     }
-  }
+  };
   beforeAll(() => {
-    htmxJson.directives['#class-list'] = classList;
+    htmxJson.directives.push(classListDirective);
   })
   afterAll(() => {
-    htmxJson.directives['#class-list'] = undefined;
+    htmxJson.directives.splice(htmxJson.directives.indexOf(classListDirective), 1);
   })
   it('should be able to add features', () => {
     const div = document.createElement('div');
