@@ -363,29 +363,17 @@ const htmxJson = (function () {
           // else
           //   remove existing value
 
-          const oldKeyIndexInNewList = newList.findIndex(
-            ([key]) => key === oldKey
-          );
+          const oldKeyIndexInNewList = findIndexInNewList(newList, oldKey, $index);
           if (oldKeyIndexInNewList >= 0) {
-            const newKeyIndexInOldList = oldList.findIndex(
-              (c) => c.data === newKey
-            );
-            if (newKeyIndexInOldList >= 0) {
-              const movingComment = oldList[newKeyIndexInOldList];
+            const newKeyIndexInOldList = findIndexInOldList(oldList, newKey, $index);
+            if (newKeyIndexInOldList > oldKeyIndexInNewList) {
+              // An existing item has been moved forward from the back of the array
               // Move from old position to current position
+              const movingComment = oldList[newKeyIndexInOldList];
               const oldNextComment = oldList[newKeyIndexInOldList + 1] ?? end;
 
               // move nodes
-              const previousSibling = movingComment.previousSibling;
-              while (
-                previousSibling?.nextSibling &&
-                previousSibling.nextSibling !== oldNextComment
-              ) {
-                oldComment.parentNode?.insertBefore(
-                  previousSibling.nextSibling,
-                  oldComment
-                );
-              }
+              moveFromUntilBeforeTo(movingComment, oldNextComment, oldComment);
 
               swapFromTo(
                 movingComment,
@@ -393,8 +381,17 @@ const htmxJson = (function () {
                 createContext(item, $ctx, $index, newKey)
               );
 
-              oldList.splice(newKeyIndexInOldList, 1);
-              oldList.splice($index, 0, movingComment);
+              oldList.splice($index, 0, ...oldList.splice(newKeyIndexInOldList, 1));
+            } else if (newKeyIndexInOldList >= 0) {
+              // An existing item has been moved back from the front of the array
+              // Move old item to the new position
+
+              const nextComment = oldList[$index + 1] ?? end;
+              const newBefore = oldList[oldKeyIndexInNewList + 1] ?? end;
+              moveFromUntilBeforeTo(oldComment, nextComment, newBefore);
+
+              oldList.splice(oldKeyIndexInNewList, 0, ...oldList.splice($index, 1));
+              $index--;
             } else {
               // Insert new item
               const clone = elm.content.cloneNode(true);
@@ -445,6 +442,28 @@ const htmxJson = (function () {
     }
 
     return end;
+  }
+
+  /**
+   * @param {Comment[]} list
+   * @param {string} key
+   */
+  function findIndexInOldList(list, key, start = 0) {
+    for (; start < list.length; start++) {
+      if (list[start].data === key) return start;
+    }
+    return -1;
+  }
+
+  /**
+   * @param {[string, any][]} list
+   * @param {string} key
+   */
+  function findIndexInNewList(list, key, start = 0) {
+    for (; start < list.length; start++) {
+      if (list[start][0] === key) return start;
+    }
+    return -1;
   }
 
   /**
@@ -789,6 +808,21 @@ const htmxJson = (function () {
     if (!previous) return;
     while (previous.nextSibling && previous.nextSibling !== to) {
       previous.nextSibling.remove();
+    }
+  }
+
+  /**
+   * @param {Node} from
+   * @param {Node} until
+   * @param {Node} to
+   */
+  function moveFromUntilBeforeTo(from, until, to) {
+    const previousSibling = from.previousSibling;
+    if (!previousSibling) return;
+    const parent = previousSibling.parentNode;
+    if (!parent) return;
+    while (previousSibling.nextSibling && previousSibling.nextSibling !== until) {
+      parent.insertBefore(previousSibling.nextSibling, to);
     }
   }
 
