@@ -1,0 +1,30 @@
+---
+layout: benchmark.html
+---
+
+<div>
+  <div id="target" .text-content="`Hello ${text}`"></div>
+  <div id="result">Result: running...</div>
+  <script type="module">
+    import { Bench } from 'https://cdn.jsdelivr.net/npm/tinybench'
+    const target = document.querySelector('#target');
+    const json = { text: 'world' };
+
+    const bench = new Bench({ name: 'text interpolation', time: 100 })
+
+    bench
+      .add('native', () => {
+        target.textContent = `Hello ${json.text}`;
+      })
+      .add('swap', () => {
+        htmxJson.swap(target, json);
+      })
+
+    await bench.run()
+
+    const nativeResult = bench.getTask('native').result.hz;
+    const swapResult = bench.getTask('swap').result.hz;
+    document.querySelector('#result').textContent = `Result: ${(nativeResult / swapResult).toFixed(2)}x slower`;
+
+  </script>
+</div>

@@ -1,0 +1,125 @@
+---
+layout: benchmark.html
+---
+
+<div>
+  <div id="benches">
+    <div data-name="rotate forward">
+      <script>
+        document.currentScript.config = (benchmark, element) => {
+          const swapTarget = element.querySelector('.swap-target');
+          const nativeTarget = element.querySelector('.native-target');
+
+          const json = {
+            list: [...new Array(10)].map((_, i) => ({ key: 'key' + i, value: 'value ' + i }))
+          };
+
+          benchmark.add('swap', () => {
+            json.list.unshift(json.list.pop());
+            htmxJson.swap(swapTarget, json);
+          }, {
+            beforeAll() {
+              htmxJson.swap(swapTarget, json);
+            }
+          })
+
+          benchmark.add('native', () => {
+            nativeTarget.insertBefore(nativeTarget.lastElementChild, nativeTarget.firstElementChild);
+          }, {
+            beforeAll(mode) {
+              if (mode == 'run') return;
+              const seed = nativeTarget.firstElementChild;
+              seed.remove();
+              for (let i = 0; i < 10; i++) {
+                const clone = seed.cloneNode();
+                nativeTarget.appendChild(clone);
+                clone.textContent = `This is key${i} with value value ${i}`
+              }
+            }
+          })
+        }
+      </script>
+      <div class="result">Result: running...</div>
+      <ul class="swap-target">
+        <template json-each="list" json-key="key">
+          <li json-ignore="!!$prev">This is ${key} with value ${value}</li>
+        </template>
+      </ul>
+      <ul class="native-target">
+        <li>This is ${key} with value ${value}</li>
+      </ul>
+    </div>
+
+    <div data-name="rotate backward">
+      <script>
+        document.currentScript.config = (benchmark, element) => {
+          const swapTarget = element.querySelector('.swap-target');
+          const nativeTarget = element.querySelector('.native-target');
+
+          const json = {
+            list: [...new Array(10)].map((_, i) => ({ key: 'key' + i, value: 'value ' + i }))
+          };
+
+          benchmark.add('swap', () => {
+            json.list.push(json.list.shift());
+            htmxJson.swap(swapTarget, json);
+          }, {
+            beforeAll() {
+              htmxJson.swap(swapTarget, json);
+            }
+          })
+
+          benchmark.add('native', () => {
+            nativeTarget.insertBefore(nativeTarget.firstElementChild, nativeTarget.lastElementChild);
+          }, {
+            beforeAll(mode) {
+              if (mode == 'run') return;
+              const seed = nativeTarget.firstElementChild;
+              seed.remove();
+              for (let i = 0; i < 10; i++) {
+                const clone = seed.cloneNode();
+                nativeTarget.appendChild(clone);
+                clone.textContent = `This is key${i} with value value ${i}`
+              }
+            }
+          })
+        }
+      </script>
+      <div class="result">Result: running...</div>
+      <ul class="swap-target">
+        <template json-each="list" json-key="key">
+          <li json-ignore="!!$prev">This is ${key} with value ${value}</li>
+        </template>
+      </ul>
+      <ul class="native-target">
+        <li>This is ${key} with value ${value}</li>
+      </ul>
+    </div>
+
+  </div>
+
+  <script type="module">
+    import { Bench } from 'https://cdn.jsdelivr.net/npm/tinybench'
+    const benches = document.querySelector('#benches');
+    for (const benchmark of benches.children) {
+      const config = benchmark.querySelector('script').config;
+
+      const bench = new Bench({
+        name: benchmark.getAttribute('data-name'),
+        times: 100
+      })
+
+      config(bench, benchmark);
+
+      await bench.run()
+
+      console.table(bench.table());
+
+      const nativeResult = bench.getTask('native').result.hz;
+      const swapResult = bench.getTask('swap').result.hz;
+      console.log(nativeResult, swapResult)
+      benchmark.querySelector('.result').textContent = `Result: ${(nativeResult / swapResult).toFixed(2)}x slower`;
+    }
+
+  </script>
+</div>
