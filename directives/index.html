@@ -45,23 +45,22 @@
     </nav>
   </header>
   <main class="container">
-    <h1>Text</h1>
-<p>There are two ways to render text, the first is very convenient but can lead to flash of unrendered content, which is why there is a second way.</p>
-<h2>interpolated text</h2>
-<p>The simplest way to present text is to use <code>${variable}</code> just like template string literals.</p>
-<pre><code class="language-html">&lt;h1&gt;${title}&lt;/h1&gt;
-&lt;p&gt;The ${subject} ${verb}ed the ${object}&lt;/p&gt;
+    <h1>Directives</h1>
+<p>Custom features can be implemented by adding to the <code>htmxJson.directives</code> array. This array contains all the features implemented for html elements, like <code>@attributes</code>, <code>json-with</code>, etc. Each element in the array is a function containing a <code>match</code> method and a <code>factory</code> method, the <code>factory</code> method is run if the <code>match</code> method returns true.</p>
+<p>For example, a very simple and probably inefficent classList directive can be created like this:</p>
+<pre><code class="language-js">htmx.directives.push({
+  match: (attr) =&gt; attr.name === '#class-list',
+  factory: (elm, attr, createGetter) =&gt; {
+    const getter = createGetter(attr.value);
+    return ($ctx) =&gt; {
+      const list = getter($ctx);
+      elm.classList.value = list.join(' ');
+    }
+  }
+})
 </code></pre>
-<p>Any arbitrarily complex expression can be used inside the curly braces.</p>
-<p>Note that before the swap is run the initial text is presented to the user. That might not be ideal, so this method is probably best used inside template elements, like if or each.</p>
-<h2>textContent</h2>
-<p>The textContent of an element can be set using the <code>.text-content</code> attribute.</p>
-<pre><code class="language-html">&lt;span .text-content=&quot;variable&quot;&gt;Prerendered text&lt;/span&gt;
-</code></pre>
-<p>This way prerendered text can be present in the element which is later replaced with the json content.</p>
-<p>Text can be interpolated in the attribute too:</p>
-<pre><code class="language-html">&lt;span .text-content=&quot;`Temperature: ${temp}°C`&quot;&gt;Temperature: 12°C&lt;/span&gt;
-</code></pre>
+<p>The <code>match</code> method checks if the attribute name is <code>#class-list</code>, and if it is the factory is run. The <code>factory</code> method returns a callback that will do the actual work. The factory is only called once, when the element with the attribute is first discovered, and the returned callback will be called every time a new value is swapped into it.</p>
+<p>The factory is called with three parameters, the element, the attribute and a <code>createGetter</code> function that can be used to convert a string into a js expression. This way the attribute value can be converted from a string into an expression that can be evaluated in the current context.</p>
 
   </main>
 </body>
