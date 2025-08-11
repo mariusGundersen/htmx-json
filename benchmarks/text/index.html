@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title></title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <script src="/src/htmx-json.js"></script>
 </head>
 
 <body>
@@ -45,43 +46,33 @@
     </nav>
   </header>
   <main class="container">
-    <h1>HTMX-JSON</h1>
-<p>This <a href="https://htmx.org/extensions/">htmx extension</a> adds support for using json response in <a href="https://htmx.org/">htmx</a>. By using a combination of attributes and templates it can easily update the dom with new values from the json response. This way you can write your html in the html file and rely on a small json response.</p>
-<h2>Install</h2>
-<p>Just reference it from a cdn, like you do with htmx.</p>
-<pre><code class="language-html">&lt;script src=&quot;https://cdn.jsdelivr.net/npm/htmx-json@1/dist/htmx-json.min.js&quot;&gt;&lt;/script&gt;
-</code></pre>
-<h2>Usage</h2>
-<p>You need to add <code>hx-ext=&quot;json-swap&quot;</code> to the body:</p>
-<pre><code class="language-html">&lt;body hx-ext=&quot;json-swap&quot;&gt;
-  ...
-&lt;/body&gt;
-</code></pre>
-<p>Next add <code>hx-swap=&quot;json&quot;</code> to the element you want to support json.</p>
-<pre><code class="language-html">&lt;div hx-get=&quot;/api/data&quot; hx-trigger=&quot;load, every 60s&quot; hx-swap=&quot;json&quot;&gt;
-  ...
-&lt;/div&gt;
-</code></pre>
-<p>Given an api endpoint that returns this json:</p>
-<pre><code class="language-json">{
-  &quot;title&quot;: &quot;This is an example&quot;,
-  &quot;url&quot;: &quot;https://example.com&quot;,
-  &quot;linkText&quot;: &quot;Click here&quot;,
-  &quot;list&quot;: [&quot;very&quot;, &quot;simple&quot;, &quot;and&quot;, &quot;cool&quot;]
-}
-</code></pre>
-<p>Add attributes and templates to an html</p>
-<pre><code class="language-html">&lt;div hx-get=&quot;/api/data&quot; hx-trigger=&quot;load, every 60s&quot; hx-swap=&quot;json&quot;&gt;
-    &lt;h2 .text-content=&quot;title&quot;&gt;This will be replaced by the value of `title`&lt;/h2&gt;
-    &lt;a @href=&quot;url&quot; .text-content=&quot;linkText&quot;&gt;This is a link&lt;/p&gt;
-    &lt;ul&gt;
-      &lt;template json-each=&quot;list&quot;&gt;
-        &lt;li&gt;${$this}&lt;/li&gt;
-      &lt;/template&gt;
-  &lt;/ul&gt;
-&lt;/div&gt;
-</code></pre>
+    
+<div>
+  <div id="target" .text-content="`Hello ${text}`"></div>
+  <div id="result">Result: running...</div>
+  <script type="module">
+    import { Bench } from 'https://cdn.jsdelivr.net/npm/tinybench'
+    const target = document.querySelector('#target');
+    const json = { text: 'world' };
 
+    const bench = new Bench({ name: 'text interpolation', time: 100 })
+
+    bench
+      .add('native', () => {
+        target.textContent = `Hello ${json.text}`;
+      })
+      .add('swap', () => {
+        htmxJson.swap(target, json);
+      })
+
+    await bench.run()
+
+    const nativeResult = bench.getTask('native').result.hz;
+    const swapResult = bench.getTask('swap').result.hz;
+    document.querySelector('#result').textContent = `Result: ${(nativeResult / swapResult).toFixed(2)}x slower`;
+
+  </script>
+</div>
   </main>
 </body>
 
