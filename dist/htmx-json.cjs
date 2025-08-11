@@ -58,7 +58,7 @@ const htmxJson = (function () {
    * @param {Node} elm
    * @param {Context} $ctx
    * @param {Node} [end]
-   * @returns {Node | null}
+   * @returns {Node | null} `null` if there is nothing to swap here
    */
   function swap(elm, $ctx, end) {
     if (elm instanceof Text) {
@@ -74,7 +74,8 @@ const htmxJson = (function () {
       const attrs = getOrCreate(elm, "attributes", createAttributeHandler);
       for (const attr of attrs) {
         if (!nextCtx) break;
-        nextCtx = attr(nextCtx);
+        const ctx = attr(nextCtx);
+        nextCtx = ctx === undefined ? nextCtx : ctx;
       }
 
       if (nextCtx === null) {
@@ -86,14 +87,16 @@ const htmxJson = (function () {
         // might not be ignored next time
         return elm;
       } else {
-        let allIgnored = true;
-        let child = elm.firstChild;
-        while (child) {
-          const result = swap(child, nextCtx);
-          allIgnored &&= result === null;
-          child = (result ?? child).nextSibling;
-        }
+        // Swap every child of this element
+        const allIgnored = swapFromTo(
+          elm.firstChild,
+          undefined,
+          nextCtx);
 
+        // if none of the children or this element
+        // need swapping, then add an ignore attribute
+        // and tell the parent node that it this is not
+        // a node of interest
         if (allIgnored && attrs.length === 0) {
           set(elm, "attributes", [() => false]);
           return null;
@@ -117,23 +120,28 @@ const htmxJson = (function () {
   }
 
   /**
-   * @param {HTMLElement} elm
-   * @returns {Array<($ctx: Context) => (Context | false | null)>}
+   * @typedef {($ctx: Context) => (Context | false | null | void)} AttributeHandler
    */
-  function createAttributeHandler(elm) {
-    /** @type {Array<($ctx: Context) => (Context | false | null)>} */
-    const result = [];
-    for (const attr of elm.attributes) {
-      if (attr.name.startsWith("@")) {
+
+  /**
+   * @typedef {(elm: HTMLElement, attr: Attr, createGetter: CreateGetter) => (AttributeHandler | undefined | null)} AttributeHandlerFactory
+   */
+
+
+  /** @type {Array<{match: (attr: Attr) => boolean, factory: AttributeHandlerFactory}>} */
+  const directives = [
+    {
+      match: (attr) => attr.name.startsWith("@"),
+      factory(elm, attr, createGetter) {
         const name = attr.name.substring(1);
         const getter = createGetter(attr.value);
 
         if (HTMX_JSON_DEBUG && !getter) {
           console.warn(`Missing value for attribute ${attr.name}`, elm);
-          continue;
-        } else if (!getter) continue;
+          return undefined;
+        } else if (!getter) return undefined;
 
-        result.push(($ctx) => {
+        return ($ctx) => {
           const value = getter($ctx);
           if (value === null) {
             elm.removeAttribute(name);
@@ -141,135 +149,175 @@ const htmxJson = (function () {
             elm.setAttribute(name, value);
           }
           return $ctx;
-        });
-      } else if (attr.name.startsWith(".")) {
+        };
+      }
+    },
+    {
+      match: (attr) => attr.name.startsWith('.'),
+      factory(elm, attr, createGetter) {
         const getter = createGetter(attr.value);
 
         if (HTMX_JSON_DEBUG && !getter) {
           console.warn(`Missing value for attribute ${attr.name}`, elm);
-          continue;
-        } else if (!getter) continue;
+          return undefined;
+        } else if (!getter) return undefined;
 
         const setter = createSetter(kebabChainToCamelChain(attr.name));
-        result.push(($ctx) => {
+        return ($ctx) => {
           setter(elm, getter($ctx));
           return $ctx;
-        });
-      } else if (attr.name === "json-ignore") {
+        };
+      }
+    },
+    {
+      match: attr => attr.name === 'json-ignore',
+      factory(elm, attr, createGetter) {
         const getter = createGetter(attr.value, "$prev");
         let $prev = undefined;
-        result.push(($ctx) => {
-          if (getter === null) return null;
+        if (getter === null) {
+          return null;
+        }
+        return ($ctx) => {
           if (getter({ ...$ctx, $prev })) {
             return false;
           } else {
             $prev = $ctx.$this;
-            return $ctx;
           }
-        });
-        if (getter === null) {
-          // stop processing of the array
-          break;
-        }
-      } else if (attr.name === "json-with") {
+        };
+      },
+    },
+    {
+      match: attr => attr.name === 'json-with',
+      factory(elm, attr, createGetter) {
         const getter = createGetter(attr.value, "$prev");
         let $prev = undefined;
 
         if (HTMX_JSON_DEBUG && !getter) {
           console.warn("Missing value for attribute json-with", elm);
-          continue;
-        } else if (!getter) continue;
+          return undefined;
+        } else if (!getter) return undefined;
 
-        result.push(($ctx) => {
+        return ($ctx) => {
           const newThis = getter({ ...$ctx, $prev });
           if (!newThis) {
             return false;
           }
           $prev = newThis;
           return createContext(newThis, $ctx);
-        });
-      } else if (attr.name === "json-text") {
+        };
+      },
+    },
+    {
+      match: attr => attr.name === 'json-text',
+      factory(elm, attr, createGetter) {
         const getter = createGetter(attr.value);
 
         if (HTMX_JSON_DEBUG && !getter) {
           console.warn("Missing value for attribute json-text", elm);
-          continue;
-        } else if (!getter) continue;
+          return undefined;
+        } else if (!getter) return undefined;
 
-        result.push(($ctx) => {
+        return ($ctx) => {
           elm.textContent = getter($ctx);
-          return $ctx;
-        });
-      } else if (attr.name === "json-show") {
+        };
+      },
+    },
+    {
+      match: attr => attr.name === 'json-show',
+      factory(elm, attr, createGetter) {
         const getter = createGetter(attr.value);
 
         if (HTMX_JSON_DEBUG && !getter) {
           console.warn("Missing value for attribute json-show", elm);
-          continue;
-        } else if (!getter) continue;
+          return undefined;
+        } else if (!getter) return undefined;
 
-        result.push(($ctx) => {
+        return ($ctx) => {
           elm.style.display = getter($ctx) ? "" : "none";
-          return $ctx;
-        });
-      } else if (attr.name === "json-hide") {
+        };
+      },
+    },
+    {
+      match: attr => attr.name === 'json-hide',
+      factory(elm, attr, createGetter) {
         const getter = createGetter(attr.value);
 
         if (HTMX_JSON_DEBUG && !getter) {
           console.warn("Missing value for attribute json-hide", elm);
-          continue;
-        } else if (!getter) continue;
+          return undefined;
+        } else if (!getter) return undefined;
 
-        result.push(($ctx) => {
+        return ($ctx) => {
           elm.style.display = getter($ctx) ? "none" : "";
-          return $ctx;
-        });
-      } else if (attr.name === "name") {
+        };
+      },
+    },
+    {
+      match: attr => attr.name === 'name',
+      factory(elm, attr, createGetter) {
         if (elm instanceof HTMLInputElement) {
           if (elm.type === "checkbox") {
-            result.push(($ctx) => {
+            return ($ctx) => {
               if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
                 const value = $ctx.$this[attr.value];
                 if (value !== undefined) {
                   elm.checked = value;
                 }
               }
-              return $ctx;
-            });
+            };
           } else if (elm.type === "radio") {
-            result.push(($ctx) => {
+            return ($ctx) => {
               if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
                 const value = $ctx.$this[attr.value];
                 if (value !== undefined) {
                   elm.checked = value === elm.value;
                 }
               }
-              return $ctx;
-            });
+            };
           } else {
-            result.push(($ctx) => {
+            return ($ctx) => {
               if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
                 const value = $ctx.$this[attr.value];
                 if (value !== undefined) {
                   elm.value = value;
                 }
               }
-              return $ctx;
-            });
+            };
           }
         } else if (elm instanceof HTMLSelectElement || elm instanceof HTMLTextAreaElement) {
-          result.push(($ctx) => {
+          return ($ctx) => {
             if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
               const value = $ctx.$this[attr.value];
               if (value !== undefined) {
                 elm.value = value;
               }
             }
-            return $ctx;
-          });
+          };
         }
       }
     }
+  ]
+
+  /**
+   * @param {HTMLElement} elm
+   * @returns {Array<AttributeHandler>}
+   */
+  function createAttributeHandler(elm) {
+    /** @type {Array<AttributeHandler>} */
+    const result = [];
+
+    // Using for of here, so that added attributes from the factories are picked up
+    for (const attr of elm.attributes) {
+      const handlerFactory = directives.find(f => f.match(attr))?.factory;
+      const handler = handlerFactory?.(elm, attr, createGetter);
+      if (handler) {
+        result.push(handler);
+      } else if (handler === null) {
+        result.push(() => null);
+        break;
+      }
+    }
+
     return result;
   }
 
@@ -624,15 +672,20 @@ const htmxJson = (function () {
 
   /**
    * @param {Node | null} start
-   * @param {any} end
+   * @param {Node | undefined} end
    * @param {Context} $ctx
    *
-   * @returns {void}
+   * @returns {boolean}
    */
   function swapFromTo(start, end, $ctx) {
+    let allIgnored = true;
     while (start && start !== end) {
-      start = (swap(start, $ctx, end) ?? start).nextSibling;
+      const result = swap(start, $ctx, end);
+      allIgnored &&= result === null;
+      start = (result ?? start).nextSibling;
     }
+
+    return allIgnored;
   }
 
   /**
@@ -697,6 +750,8 @@ const htmxJson = (function () {
       new Function("obj", "value", `obj${name} = value;`)
     );
   }
+
+  /** @typedef {typeof createGetter} CreateGetter */
 
   /**
    * @template {string[]} V
@@ -767,6 +822,7 @@ const htmxJson = (function () {
     swap(elm, data) {
       swap(elm, createContext(data));
     },
+    directives
   };
 })();
 module.exports htmxJson;
