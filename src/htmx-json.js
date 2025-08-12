@@ -15,7 +15,7 @@ const htmxJson = (function () {
         if (swapStyle === "json") {
           const json = JSON.parse(fragment.textContent);
 
-          swap(target, createContext(json));
+          swap(target, { $this: json });
 
           return [target];
         }
@@ -24,16 +24,25 @@ const htmxJson = (function () {
   }
 
   /**
+   * @param {Context} $ctx
+   * @returns {Context}
+   */
+  function createParentContext($ctx) {
+    // @ts-ignore
+    return { ...$ctx, __proto__: $ctx.$this };
+  }
+
+  /**
    * @param {any} $this
-   * @param {Context} [$ctx]
+   * @param {Context} $parent
    * @param {number} [$index]
    * @param {string} [$key]
    * @returns {Context}
    */
-  function createContext($this, $ctx, $index, $key) {
+  function createContext($this, $parent, $index, $key) {
     return {
       $this,
-      $parent: $ctx && { ...$ctx, __proto__: $ctx.$this },
+      $parent,
       $index,
       $key,
     };
@@ -42,9 +51,9 @@ const htmxJson = (function () {
   /**
    * @typedef {{
    *   $this: any,
-   *   $parent: any | undefined,
-   *   $index: number | undefined,
-   *   $key: string | undefined
+   *   $parent?: any,
+   *   $index?: number,
+   *   $key?: string
    * }} Context
    */
 
@@ -61,14 +70,16 @@ const htmxJson = (function () {
    * @returns {Node | null} `null` if there is nothing to swap here
    */
   function swap(elm, $ctx, end) {
-    if (elm instanceof Text) {
+    if (isText(elm)) {
       const textGetter = getOrCreate(elm, "text", createTextGetter);
       if (!textGetter) return null;
       elm.textContent = textGetter($ctx);
       return elm;
-    } else if (elm instanceof HTMLTemplateElement) {
-      return handleEach(elm, $ctx, end) ?? handleIf(elm, $ctx, end) ?? elm;
-    } else if (elm instanceof HTMLElement) {
+    } else if (isElement(elm)) {
+      if (isTemplateElement(elm)) {
+        return handleEach(elm, $ctx, end) ?? handleIf(elm, $ctx, end) ?? null;
+      }
+
       /** @type {false | null | Context} */
       let nextCtx = $ctx;
       const attrs = getOrCreate(elm, "attributes", createAttributeHandler);
@@ -105,8 +116,33 @@ const htmxJson = (function () {
         }
       }
     } else {
-      return elm;
+      return null;
     }
+  }
+
+
+  /**
+   * @param {Element} elm
+   * @returns {elm is HTMLTemplateElement}
+   */
+  function isTemplateElement(elm) {
+    return elm.nodeName === 'TEMPLATE';
+  }
+
+  /**
+   * @param {Node} elm
+   * @returns {elm is Element}
+   */
+  function isElement(elm) {
+    return elm.nodeType === 1;
+  }
+
+  /**
+   * @param {Node} elm
+   * @returns {elm is Text}
+   */
+  function isText(elm) {
+    return elm.nodeType === 3;
   }
 
   /**
@@ -124,7 +160,7 @@ const htmxJson = (function () {
    */
 
   /**
-   * @typedef {(elm: HTMLElement, attr: Attr, createGetter: CreateGetter) => (AttributeHandler | undefined | null)} AttributeHandlerFactory
+   * @typedef {(elm: Element, attr: Attr, createGetter: CreateGetter) => (AttributeHandler | undefined | null)} AttributeHandlerFactory
    */
 
 
@@ -203,7 +239,8 @@ const htmxJson = (function () {
             return false;
           }
           $prev = newThis;
-          return createContext(newThis, $ctx);
+          const $parent = createParentContext($ctx);
+          return createContext(newThis, $parent);
         };
       },
     },
@@ -225,31 +262,35 @@ const htmxJson = (function () {
     {
       match: attr => attr.name === 'json-show',
       factory(elm, attr, createGetter) {
-        const getter = createGetter(attr.value);
+        if (elm instanceof HTMLElement) {
+          const getter = createGetter(attr.value);
 
-        if (HTMX_JSON_DEBUG && !getter) {
-          console.warn("Missing value for attribute json-show", elm);
-          return undefined;
-        } else if (!getter) return undefined;
+          if (HTMX_JSON_DEBUG && !getter) {
+            console.warn("Missing value for attribute json-show", elm);
+            return undefined;
+          } else if (!getter) return undefined;
 
-        return ($ctx) => {
-          elm.style.display = getter($ctx) ? "" : "none";
-        };
+          return ($ctx) => {
+            elm.style.display = getter($ctx) ? "" : "none";
+          };
+        }
       },
     },
     {
       match: attr => attr.name === 'json-hide',
       factory(elm, attr, createGetter) {
-        const getter = createGetter(attr.value);
+        if (elm instanceof HTMLElement) {
+          const getter = createGetter(attr.value);
 
-        if (HTMX_JSON_DEBUG && !getter) {
-          console.warn("Missing value for attribute json-hide", elm);
-          return undefined;
-        } else if (!getter) return undefined;
+          if (HTMX_JSON_DEBUG && !getter) {
+            console.warn("Missing value for attribute json-hide", elm);
+            return undefined;
+          } else if (!getter) return undefined;
 
-        return ($ctx) => {
-          elm.style.display = getter($ctx) ? "none" : "";
-        };
+          return ($ctx) => {
+            elm.style.display = getter($ctx) ? "none" : "";
+          };
+        }
       },
     },
     {
@@ -299,7 +340,7 @@ const htmxJson = (function () {
   ]
 
   /**
-   * @param {HTMLElement} elm
+   * @param {Element} elm
    * @returns {Array<AttributeHandler>}
    */
   function createAttributeHandler(elm) {
@@ -336,108 +377,119 @@ const htmxJson = (function () {
 
     const newList = getItemsMap(eachGetter, $ctx, elm);
 
+    const $parent = createParentContext($ctx);
+
     let $index;
-    for ($index = 0; $index < newList.length; $index++) {
+    for ($index = 0; $index < newList.length && $index < oldList.length; $index++) {
       const [newKey, item] = newList[$index];
-      const oldComment = oldList[$index];
 
-      if (oldComment instanceof Comment) {
-        const oldKey = oldComment.data;
+      const old = oldList[$index];
+      const oldKey = old[0];
+      const oldComment = old[1];
 
-        if (oldKey === newKey) {
-          // Same key
-          // * update index
-          // * recurse into children
-          swapFromTo(
-            oldComment.nextSibling,
-            oldList[$index + 1] ?? end,
-            createContext(item, $ctx, $index, newKey)
-          );
-        } else {
-          // Different keys
-          // can oldKey be found somehere later in the new items?
-          //   can newKey be found somewhere later in the existing items?
-          //     move existing item with key=newKey here
-          //   else
-          //     insert the new item here with key=newKey
-          // else
-          //   remove existing value
+      if (oldKey === newKey) {
+        // Same key
 
-          const oldKeyIndexInNewList = findIndexInNewList(newList, oldKey, $index);
-          if (oldKeyIndexInNewList >= 0) {
-            const newKeyIndexInOldList = findIndexInOldList(oldList, newKey, $index);
-            if (newKeyIndexInOldList > oldKeyIndexInNewList) {
-              // An existing item has been moved forward from the back of the array
-              // Move from old position to current position
-              const movingComment = oldList[newKeyIndexInOldList];
-              const oldNextComment = oldList[newKeyIndexInOldList + 1] ?? end;
+        swapFromTo(
+          oldComment.nextSibling,
+          oldList[$index + 1]?.[1] ?? end,
+          createContext(item, $parent, $index, newKey)
+        );
+      } else {
+        // Different keys
+        // can oldKey be found somehere later in the new items?
+        //   can newKey be found somewhere later in the existing items?
+        //     move existing item with key=newKey here
+        //   else
+        //     insert the new item here with key=newKey
+        // else
+        //   remove existing value
 
-              // move nodes
-              moveFromUntilBeforeTo(movingComment, oldNextComment, oldComment);
+        const oldKeyIndexInNewList = findIndexInNewList(newList, oldKey, $index);
+        if (oldKeyIndexInNewList >= 0) {
+          const newKeyIndexInOldList = findIndexInOldList(oldList, newKey, $index);
+          if (newKeyIndexInOldList > oldKeyIndexInNewList) {
+            // An existing item has been moved forward from the back of the array
+            // Move from old position to current position
+            const moving = oldList[newKeyIndexInOldList];
+            const movingComment = moving[1];
+            const oldNextComment = oldList[newKeyIndexInOldList + 1]?.[1] ?? end;
 
-              swapFromTo(
-                movingComment,
-                oldComment,
-                createContext(item, $ctx, $index, newKey)
-              );
+            // move nodes
+            moveFromUntilBeforeTo(movingComment, oldNextComment, oldComment);
 
-              oldList.splice($index, 0, ...oldList.splice(newKeyIndexInOldList, 1));
-            } else if (newKeyIndexInOldList >= 0) {
-              // An existing item has been moved back from the front of the array
-              // Move old item to the new position
+            swapFromTo(
+              movingComment,
+              oldComment,
+              createContext(item, $parent, $index, newKey)
+            );
 
-              const nextComment = oldList[$index + 1] ?? end;
-              const newBefore = oldList[oldKeyIndexInNewList + 1] ?? end;
-              moveFromUntilBeforeTo(oldComment, nextComment, newBefore);
+            oldList.splice(newKeyIndexInOldList, 1)
+            oldList.splice($index, 0, moving);
+          } else if (newKeyIndexInOldList >= 0) {
+            // An existing item has been moved back from the front of the array
+            // Move old item to the new position
 
-              oldList.splice(oldKeyIndexInNewList, 0, ...oldList.splice($index, 1));
-              $index--;
-            } else {
-              // Insert new item
-              const clone = elm.content.cloneNode(true);
-              const comment = document.createComment(newKey);
+            const nextComment = oldList[$index + 1]?.[1] ?? end;
+            const newBefore = oldList[oldKeyIndexInNewList + 1]?.[1] ?? end;
+            moveFromUntilBeforeTo(oldComment, nextComment, newBefore);
 
-              oldList.splice($index, 0, comment);
-
-              elm.parentNode?.insertBefore(comment, oldComment);
-              elm.parentNode?.insertBefore(clone, oldComment);
-              swapFromTo(
-                comment.nextSibling,
-                oldComment,
-                createContext(item, $ctx, $index, newKey)
-              );
-            }
-          } else {
-            // Remove current item
-            const nextComment = oldList[$index + 1] ?? end;
-
-            removeFromTo(oldComment, nextComment);
+            // Don't swapFromTo here, since this item will be visited again later
 
             oldList.splice($index, 1);
-            // since we removed an item we need to subtract it from the current index
+            oldList.splice(oldKeyIndexInNewList, 0, old);
             $index--;
-          }
-        }
-      } else {
-        // Append item at the end
-        const clone = elm.content.cloneNode(true);
-        const comment = document.createComment(newKey);
-        oldList.push(comment);
+          } else {
+            // Insert new item
+            const clone = elm.content.cloneNode(true);
+            const comment = document.createComment(newKey);
 
-        elm.parentNode?.insertBefore(comment, end);
-        elm.parentNode?.insertBefore(clone, end);
-        swapFromTo(
-          comment.nextSibling,
-          end,
-          createContext(item, $ctx, $index, newKey)
-        );
+
+            elm.parentNode?.insertBefore(comment, oldComment);
+            elm.parentNode?.insertBefore(clone, oldComment);
+            swapFromTo(
+              comment.nextSibling,
+              oldComment,
+              createContext(item, $parent, $index, newKey)
+            );
+
+            oldList.splice($index, 0, [newKey, comment]);
+          }
+        } else {
+          // Remove current item
+          const nextComment = oldList[$index + 1]?.[1] ?? end;
+
+          removeFromTo(oldComment, nextComment);
+
+          oldList.splice($index, 1);
+          // since we removed an item we need to subtract it from the current index
+          $index--;
+        }
       }
     }
 
+    for (; $index < newList.length; $index++) {
+      const [newKey, item] = newList[$index];
+      // Append item at the end
+      const clone = elm.content.cloneNode(true);
+      const comment = document.createComment(newKey);
+
+      elm.parentNode?.insertBefore(comment, end);
+      elm.parentNode?.insertBefore(clone, end);
+
+      swapFromTo(
+        comment.nextSibling,
+        end,
+        createContext(item, $parent, $index, newKey)
+      );
+
+      oldList.push([newKey, comment]);
+    }
+
     // Remove everything remaining
-    const oldComment = oldList[$index];
-    if (oldComment) {
-      removeFromTo(oldComment, end);
+    const old = oldList[$index];
+    if (old) {
+      removeFromTo(old[1], end);
       oldList.splice($index, oldList.length - $index);
     }
 
@@ -445,12 +497,12 @@ const htmxJson = (function () {
   }
 
   /**
-   * @param {Comment[]} list
+   * @param {[string, Comment][]} list
    * @param {string} key
    */
   function findIndexInOldList(list, key, start = 0) {
     for (; start < list.length; start++) {
-      if (list[start].data === key) return start;
+      if (list[start][0] === key) return start;
     }
     return -1;
   }
@@ -470,7 +522,7 @@ const htmxJson = (function () {
    * @param {Getter} eachGetter
    * @param {Context} $ctx
    * @param {HTMLElement} elm
-   * @returns {[string, any][]}
+   * @returns {[string, unknown][]}
    */
   function getItemsMap(eachGetter, $ctx, elm) {
     const items = eachGetter($ctx);
@@ -480,8 +532,11 @@ const htmxJson = (function () {
     if (!items) {
       return [];
     } else if (Array.isArray(items)) {
-      return items.map((item, index) => [
-        keyGetter ? keyGetter(createContext(item)) : index.toString(),
+      return keyGetter ? items.map((item) => [
+        String(keyGetter({ $this: item })),
+        item,
+      ]) : items.map((item, index) => [
+        index.toString(),
         item,
       ]);
     } else if (typeof items === "object") {
@@ -510,10 +565,10 @@ const htmxJson = (function () {
   /**
    * @param {ChildNode} elm
    * @param {Comment} end
-   * @returns {Comment[]}
+   * @returns {[string, Comment][]}
    */
   function getExistingList(elm, _, end) {
-    /** @type {Comment[]} */
+    /** @type {[string, Comment][]} */
     const existingList = [];
 
     let existingComment = elm.nextSibling;
@@ -521,7 +576,7 @@ const htmxJson = (function () {
       existingComment = existingComment.nextSibling;
     }
     while (existingComment instanceof Comment && existingComment !== end) {
-      existingList.push(existingComment);
+      existingList.push([existingComment.data, existingComment]);
       existingComment = findComment(existingComment) ?? end;
     }
 
@@ -700,8 +755,12 @@ const htmxJson = (function () {
     let allIgnored = true;
     while (start && start !== end) {
       const result = swap(start, $ctx, end);
-      allIgnored &&= result === null;
-      start = (result ?? start).nextSibling;
+      if (result === null) {
+        start = start.nextSibling;
+      } else {
+        allIgnored = false;
+        start = result.nextSibling;
+      }
     }
 
     return allIgnored;
@@ -725,8 +784,8 @@ const htmxJson = (function () {
    * @param {string} key
    */
   function get(elm, key) {
-    const map = (elm[jsonMap] ??= new Map());
-    return map.get(key);
+    const map = (elm[jsonMap] ??= {});
+    return map[key];
   }
 
   /**
@@ -735,8 +794,8 @@ const htmxJson = (function () {
    * @param {any} value
    */
   function set(elm, key, value) {
-    const map = (elm[jsonMap] ??= new Map());
-    map.set(key, value);
+    const map = (elm[jsonMap] ??= {});
+    map[key] = value;
   }
 
   /**
@@ -750,11 +809,11 @@ const htmxJson = (function () {
    * @returns {T}
    */
   function getOrCreate(elm, key, factory, ...args) {
-    const map = (elm[jsonMap] ??= new Map());
-    let value = map.get(key);
+    const map = (elm[jsonMap] ??= {});
+    let value = map[key];
     if (value === undefined) {
       value = factory(elm, key, ...args);
-      map.set(key, value);
+      map[key] = value;
     }
     return value;
   }
@@ -854,7 +913,7 @@ const htmxJson = (function () {
      * @returns {void}
      */
     swap(elm, data) {
-      swap(elm, createContext(data));
+      swap(elm, { $this: data });
     },
     directives
   };
