@@ -445,8 +445,7 @@ const htmxJson = (function () {
             const comment = document.createComment(newKey);
 
 
-            elm.parentNode?.insertBefore(comment, oldComment);
-            elm.parentNode?.insertBefore(clone, oldComment);
+            oldComment.before(comment, clone);
             swapFromTo(
               comment.nextSibling,
               oldComment,
@@ -474,8 +473,7 @@ const htmxJson = (function () {
       const clone = elm.content.cloneNode(true);
       const comment = document.createComment(newKey);
 
-      elm.parentNode?.insertBefore(comment, end);
-      elm.parentNode?.insertBefore(clone, end);
+      end.before(comment, clone);
 
       swapFromTo(
         comment.nextSibling,
@@ -625,7 +623,7 @@ const htmxJson = (function () {
       if (comment.data !== "json-if") {
         comment.data = "json-if";
         removeFromTo(comment.nextSibling, end);
-        ifTmpl.parentNode?.insertBefore(ifTmpl.content.cloneNode(true), end);
+        end.before(ifTmpl.content.cloneNode(true));
       }
     } else {
       let i = 0;
@@ -642,10 +640,7 @@ const htmxJson = (function () {
           if (comment.data !== commentValue) {
             comment.data = commentValue;
             removeFromTo(comment.nextSibling, end);
-            elseIfTmpl.parentNode?.insertBefore(
-              elseIfTmpl.content.cloneNode(true),
-              end
-            );
+            end.before(elseIfTmpl.content.cloneNode(true));
           }
           break;
         }
@@ -654,10 +649,7 @@ const htmxJson = (function () {
         comment.data = "json-else";
         removeFromTo(comment.nextSibling, end);
         if (elseTmpl) {
-          elseTmpl.parentNode?.insertBefore(
-            elseTmpl.content.cloneNode(true),
-            end
-          );
+          end.before(elseTmpl.content.cloneNode(true));
         }
       }
     }
@@ -679,7 +671,7 @@ const htmxJson = (function () {
       return comment;
     } else {
       const comment = document.createComment("");
-      elm.parentNode?.insertBefore(comment, elm.nextSibling);
+      elm.after(comment);
       return comment;
     }
   }
@@ -690,10 +682,11 @@ const htmxJson = (function () {
    * @param {Node} [end]
    */
   function findOrCreateComment(elm, key, end) {
-    return (
-      findComment(elm, key, end) ??
-      elm.parentNode?.insertBefore(document.createComment(key), elm.nextSibling)
-    );
+    const found = findComment(elm, key, end);
+    if (found) return found;
+    const created = document.createComment(key);
+    elm.after(created);
+    return created;
   }
 
   /**
@@ -873,16 +866,19 @@ const htmxJson = (function () {
   /**
    * @param {Node} from
    * @param {Node} until
-   * @param {Node} to
+   * @param {Comment} to
    */
   function moveFromUntilBeforeTo(from, until, to) {
-    const previousSibling = from.previousSibling;
-    if (!previousSibling) return;
-    const parent = previousSibling.parentNode;
+    const parent = from.parentNode;
     if (!parent) return;
-    while (previousSibling.nextSibling && previousSibling.nextSibling !== until) {
-      parent.insertBefore(previousSibling.nextSibling, to);
+    const nodes = [];
+    /** @type {Node | null} */
+    let node = from;
+    while (node && node !== until) {
+      nodes.push(node)
+      node = node.nextSibling;
     }
+    to.before(...nodes);
   }
 
   /**
