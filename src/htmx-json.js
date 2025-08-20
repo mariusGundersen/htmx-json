@@ -838,11 +838,7 @@ const htmxJson = (function () {
       dest[jsonMap] = { ...src[jsonMap] };
     }
 
-    if (src instanceof HTMLTemplateElement && dest instanceof HTMLTemplateElement) {
-      cloneJsonMap(src.content.firstChild, dest.content.firstChild);
-    } else {
-      cloneJsonMap(src.firstChild, dest.firstChild);
-    }
+    cloneJsonMap(src.firstChild, dest.firstChild);
     cloneJsonMap(src.nextSibling, dest.nextSibling);
   }
 
@@ -851,7 +847,7 @@ const htmxJson = (function () {
    * @param {string} key
    */
   function get(elm, key) {
-    const map = (elm[jsonMap] ??= {});
+    const map = (elm[jsonMap] ??= Object.create(null));
     return map[key];
   }
 
@@ -861,7 +857,7 @@ const htmxJson = (function () {
    * @param {any} value
    */
   function set(elm, key, value) {
-    const map = (elm[jsonMap] ??= {});
+    const map = (elm[jsonMap] ??= Object.create(null));
     map[key] = value;
   }
 
@@ -876,7 +872,7 @@ const htmxJson = (function () {
    * @returns {T}
    */
   function getOrCreate(elm, key, factory, ...args) {
-    const map = (elm[jsonMap] ??= {});
+    const map = (elm[jsonMap] ??= Object.create(null));
     let value = map[key];
     if (value === undefined) {
       value = factory(elm, key, ...args);
@@ -898,6 +894,8 @@ const htmxJson = (function () {
 
   /** @typedef {typeof createGetter} CreateGetter */
 
+  const getterMap = Object.create(null);
+
   /**
    * @template {string[]} V
    * @param {String | null} value
@@ -906,7 +904,12 @@ const htmxJson = (function () {
    */
   function createGetter(value, ...vars) {
     if (!value) return null;
-    return /** @type {Getter} */ (
+
+    const found = getterMap[value];
+    if (found) return found;
+
+
+    const getter = /** @type {Getter} */ (
       new Function(
         `{$this, $parent, $index, $key, ${vars.join(", ")}}`,
         `
@@ -923,6 +926,10 @@ const htmxJson = (function () {
       `
       )
     );
+
+    getterMap[value] = getter;
+
+    return getter;
   }
 
   /**
