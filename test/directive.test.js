@@ -3,7 +3,7 @@ describe('directives', () => {
     match: (attr) => attr.name === '#class-list',
     factory: (elm, attr, createGetter) => {
       const getter = createGetter(attr.value);
-      return ($ctx) => {
+      return ($ctx, elm) => {
         const list = getter($ctx);
         elm.classList.value = list.join(' ');
       }
