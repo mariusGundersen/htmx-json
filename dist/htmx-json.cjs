@@ -838,7 +838,11 @@ const htmxJson = (function () {
       dest[jsonMap] = { ...src[jsonMap] };
     }
 
-    cloneJsonMap(src.firstChild, dest.firstChild);
+    if (src instanceof HTMLTemplateElement && dest instanceof HTMLTemplateElement) {
+      cloneJsonMap(src.content.firstChild, dest.content.firstChild);
+    } else {
+      cloneJsonMap(src.firstChild, dest.firstChild);
+    }
     cloneJsonMap(src.nextSibling, dest.nextSibling);
   }
 
