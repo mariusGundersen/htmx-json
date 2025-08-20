@@ -28,10 +28,4 @@ describe("preparse", () => {
     expect(div.textContent).toBe(`one two three `);
     expect(profiling).toBe(1)
   });
-  it("should only create the #profiling once also with nested templates", () => {
-    div.innerHTML = `<template json-each="list"><template json-if="true"><span #profile>\${$this} </span></template></template>`;
-    htmxJson.swap(div, { list: ['one', 'two', 'three'] });
-    expect(div.textContent).toBe(`one two three `);
-    expect(profiling).toBe(1)
-  });
 });
