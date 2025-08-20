@@ -67,32 +67,41 @@ const htmxJson = (function () {
    * @param {Node} elm
    * @param {Context} $ctx
    * @param {Node} [end]
+   * @param {boolean} [parseOnly]
    * @returns {Node | null} `null` if there is nothing to swap here
    */
-  function swap(elm, $ctx, end) {
+  function swap(elm, $ctx, end, parseOnly) {
     if (isText(elm)) {
       const textGetter = getOrCreate(elm, "text", createTextGetter);
       if (!textGetter) return null;
+      if (parseOnly) return elm;
       elm.textContent = textGetter($ctx);
       return elm;
     } else if (isElement(elm)) {
       if (isTemplateElement(elm)) {
-        return handleEach(elm, $ctx, end) ?? handleIf(elm, $ctx, end) ?? null;
+        return handleEach(elm, $ctx, end, parseOnly) ?? handleIf(elm, $ctx, end, parseOnly) ?? null;
       }
 
       /** @type {false | null | Context} */
       let nextCtx = $ctx;
       const attrs = getOrCreate(elm, "attributes", createAttributeHandler);
       for (const attr of attrs) {
+        // attr can be null if there was a json-ignore attribute without any value
+        if (!attr) {
+          // If so, we set the nextCtx to null which will break out of the loop
+          nextCtx = null;
+        } else if (!parseOnly) {
+          // Execute the attr, and the result is either undefined or a new ctx.
+          // if it is undefined, then we use the existing ctx
+          nextCtx = attr(nextCtx) ?? nextCtx;
+        }
         if (!nextCtx) break;
-        const ctx = attr(nextCtx);
-        nextCtx = ctx === undefined ? nextCtx : ctx;
       }
 
       if (nextCtx === null) {
         // there is a json-ignore in the attribute list
         // if that's the only attr then we can ignore this element completely
-        return attrs.length === 1 ? null : elm;
+        return attrs.length === 1 && attrs[0] === null ? null : elm;
       } else if (nextCtx === false) {
         // false means ignore this time, but don't ignore this subtree, as it
         // might not be ignored next time
@@ -102,14 +111,15 @@ const htmxJson = (function () {
         const allIgnored = swapFromTo(
           elm.firstChild,
           undefined,
-          nextCtx);
+          nextCtx,
+          parseOnly);
 
         // if none of the children or this element
         // need swapping, then add an ignore attribute
         // and tell the parent node that it this is not
         // a node of interest
         if (allIgnored && attrs.length === 0) {
-          set(elm, "attributes", [() => false]);
+          set(elm, "attributes", [null]);
           return null;
         } else {
           return elm;
@@ -156,7 +166,7 @@ const htmxJson = (function () {
   }
 
   /**
-   * @typedef {($ctx: Context) => (Context | false | null | void)} AttributeHandler
+   * @typedef {($ctx: Context) => (Context | false | void)} AttributeHandler
    */
 
   /**
@@ -341,10 +351,10 @@ const htmxJson = (function () {
 
   /**
    * @param {Element} elm
-   * @returns {Array<AttributeHandler>}
+   * @returns {Array<AttributeHandler | null>}
    */
   function createAttributeHandler(elm) {
-    /** @type {Array<AttributeHandler>} */
+    /** @type {Array<AttributeHandler | null>} */
     const result = [];
 
     // Using for of here, so that added attributes from the factories are picked up
@@ -354,7 +364,7 @@ const htmxJson = (function () {
       if (handler) {
         result.push(handler);
       } else if (handler === null) {
-        result.push(() => null);
+        result.push(null);
         break;
       }
     }
@@ -366,10 +376,16 @@ const htmxJson = (function () {
    * @param {HTMLTemplateElement} elm
    * @param {Context} $ctx
    * @param {Node} [parentEnd]
+   * @param {boolean} [parseOnly]
    */
-  function handleEach(elm, $ctx, parentEnd) {
+  function handleEach(elm, $ctx, parentEnd, parseOnly) {
     const eachGetter = getGetter(elm, "json-each");
     if (!eachGetter) return null;
+
+    preParseTemplate(elm);
+
+    if (parseOnly) return elm;
+
     const end = getOrCreate(elm, "/json-each", findOrCreateComment, parentEnd);
     if (!end) return elm;
 
@@ -441,7 +457,7 @@ const htmxJson = (function () {
             $index--;
           } else {
             // Insert new item
-            const clone = elm.content.cloneNode(true);
+            const clone = cloneTemplate(elm);
             const comment = document.createComment(newKey);
 
 
@@ -470,7 +486,7 @@ const htmxJson = (function () {
     for (; $index < newList.length; $index++) {
       const [newKey, item] = newList[$index];
       // Append item at the end
-      const clone = elm.content.cloneNode(true);
+      const clone = cloneTemplate(elm);
       const comment = document.createComment(newKey);
 
       end.before(comment, clone);
@@ -564,6 +580,7 @@ const htmxJson = (function () {
    * @param {ChildNode} elm
    * @param {Comment} end
    * @returns {[string, Comment][]}
+   * @param {any} _
    */
   function getExistingList(elm, _, end) {
     /** @type {[string, Comment][]} */
@@ -585,14 +602,17 @@ const htmxJson = (function () {
    * @param {HTMLTemplateElement} elm
    * @param {Context} $ctx
    * @param {Node} [parentEnd]
+   * @param {boolean} [parseOnly]
    */
-  function handleIf(elm, $ctx, parentEnd) {
+  function handleIf(elm, $ctx, parentEnd, parseOnly) {
     const ifGetter = getGetter(elm, "json-if");
 
     if (HTMX_JSON_DEBUG && !ifGetter) {
       console.warn("Missing value for attribute json-if", elm);
       return null;
     } else if (!ifGetter) return null;
+
+    preParseTemplate(elm);
 
     const ifTmpl = elm;
     const elseIfTmpls = [];
@@ -601,13 +621,20 @@ const htmxJson = (function () {
       const found = getNextTemplateWithAttribute(tmpl, "json-else-if");
       if (!found) break;
       tmpl = found;
+
+      preParseTemplate(tmpl);
+
       elseIfTmpls.push(found);
     }
     const elseTmpl = getNextTemplateWithAttribute(tmpl, "json-else");
 
+    if (elseTmpl) preParseTemplate(elseTmpl);
+
     if (HTMX_JSON_DEBUG && elseTmpl?.getAttribute("json-else")) {
       console.warn("json-else should not have a value", elseTmpl);
     }
+
+    if (parseOnly) return elseTmpl ?? elseIfTmpls.at(-1) ?? ifTmpl;
 
     const comment = getOrCreateNextComment(elseTmpl ?? tmpl, parentEnd);
 
@@ -623,7 +650,7 @@ const htmxJson = (function () {
       if (comment.data !== "json-if") {
         comment.data = "json-if";
         removeFromTo(comment.nextSibling, end);
-        end.before(ifTmpl.content.cloneNode(true));
+        end.before(cloneTemplate(ifTmpl));
       }
     } else {
       let i = 0;
@@ -640,7 +667,7 @@ const htmxJson = (function () {
           if (comment.data !== commentValue) {
             comment.data = commentValue;
             removeFromTo(comment.nextSibling, end);
-            end.before(elseIfTmpl.content.cloneNode(true));
+            end.before(cloneTemplate(elseIfTmpl));
           }
           break;
         }
@@ -649,7 +676,7 @@ const htmxJson = (function () {
         comment.data = "json-else";
         removeFromTo(comment.nextSibling, end);
         if (elseTmpl) {
-          end.before(elseTmpl.content.cloneNode(true));
+          end.before(cloneTemplate(elseTmpl));
         }
       }
     }
@@ -741,13 +768,14 @@ const htmxJson = (function () {
    * @param {Node | null} start
    * @param {Node | undefined} end
    * @param {Context} $ctx
+   * @param {boolean} [parseOnly]
    *
    * @returns {boolean}
    */
-  function swapFromTo(start, end, $ctx) {
+  function swapFromTo(start, end, $ctx, parseOnly) {
     let allIgnored = true;
     while (start && start !== end) {
-      const result = swap(start, $ctx, end);
+      const result = swap(start, $ctx, end, parseOnly);
       if (result === null) {
         start = start.nextSibling;
       } else {
@@ -770,7 +798,49 @@ const htmxJson = (function () {
     );
   }
 
+  /**
+   * @param {HTMLTemplateElement} elm
+   */
+  function swapParseOnly(elm) {
+    return swapFromTo(elm.content.firstChild, undefined, { $this: 'preparse' }, true);
+  }
+
+  /**
+   * @param {HTMLTemplateElement} tmpl
+   */
+  function preParseTemplate(tmpl) {
+    getOrCreate(tmpl, 'preParsed', swapParseOnly)
+  }
+
+  /**
+   * @param {HTMLTemplateElement} tmpl
+   */
+  function cloneTemplate(tmpl) {
+    const clone = tmpl.content.cloneNode(true);
+
+
+    cloneJsonMap(tmpl.content.firstChild, clone.firstChild);
+
+
+    return clone;
+  }
+
   const jsonMap = Symbol();
+
+  /**
+   * @param {Node | null} src
+   * @param {Node | null} dest
+   */
+  function cloneJsonMap(src, dest) {
+    if (!src || !dest) return;
+
+    if (src[jsonMap]) {
+      dest[jsonMap] = { ...src[jsonMap] };
+    }
+
+    cloneJsonMap(src.firstChild, dest.firstChild);
+    cloneJsonMap(src.nextSibling, dest.nextSibling);
+  }
 
   /**
    * @param {Node} elm
