@@ -52,7 +52,7 @@
   match: (attr) =&gt; attr.name === '#class-list',
   factory: (elm, attr, createGetter) =&gt; {
     const getter = createGetter(attr.value);
-    return ($ctx) =&gt; {
+    return ($ctx, elm) =&gt; {
       const list = getter($ctx);
       elm.classList.value = list.join(' ');
     }
@@ -60,6 +60,9 @@
 })
 </code></pre>
 <p>The <code>match</code> method checks if the attribute name is <code>#class-list</code>, and if it is the factory is run. The <code>factory</code> method returns a callback that will do the actual work. The factory is only called once, when the element with the attribute is first discovered, and the returned callback will be called every time a new value is swapped into it.</p>
+<blockquote>
+<p>Note: The <code>elm</code> in the factory may not be the same as the <code>elm</code> in the returned callback! When using <code>&lt;template json-each=list&gt;</code> the factory is run once for the DOM elements inside the template, not for each item in the list. The factory therefore should only be used to create the returned callback, it should not be used to store values between swaps or anything like that.</p>
+</blockquote>
 <p>The factory is called with three parameters, the element, the attribute and a <code>createGetter</code> function that can be used to convert a string into a js expression. This way the attribute value can be converted from a string into an expression that can be evaluated in the current context.</p>
 
   </main>
