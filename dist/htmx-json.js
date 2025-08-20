@@ -93,7 +93,7 @@ const htmxJson = (function () {
         } else if (!parseOnly) {
           // Execute the attr, and the result is either undefined or a new ctx.
           // if it is undefined, then we use the existing ctx
-          nextCtx = attr(nextCtx) ?? nextCtx;
+          nextCtx = attr(nextCtx, elm) ?? nextCtx;
         }
         if (!nextCtx) break;
       }
@@ -166,7 +166,7 @@ const htmxJson = (function () {
   }
 
   /**
-   * @typedef {($ctx: Context) => (Context | false | void)} AttributeHandler
+   * @typedef {($ctx: Context, elm: Element) => (Context | false | void)} AttributeHandler
    */
 
   /**
@@ -187,7 +187,7 @@ const htmxJson = (function () {
           return undefined;
         } else if (!getter) return undefined;
 
-        return ($ctx) => {
+        return ($ctx, elm) => {
           const value = getter($ctx);
           if (value === null) {
             elm.removeAttribute(name);
@@ -209,7 +209,7 @@ const htmxJson = (function () {
         } else if (!getter) return undefined;
 
         const setter = createSetter(kebabChainToCamelChain(attr.name));
-        return ($ctx) => {
+        return ($ctx, elm) => {
           setter(elm, getter($ctx));
           return $ctx;
         };
@@ -219,15 +219,14 @@ const htmxJson = (function () {
       match: attr => attr.name === 'json-ignore',
       factory(elm, attr, createGetter) {
         const getter = createGetter(attr.value, "$prev");
-        let $prev = undefined;
         if (getter === null) {
           return null;
         }
-        return ($ctx) => {
-          if (getter({ ...$ctx, $prev })) {
+        return ($ctx, elm) => {
+          if (getter({ ...$ctx, $prev: get(elm, 'json-ignore-prev') })) {
             return false;
           } else {
-            $prev = $ctx.$this;
+            set(elm, 'json-ignore-prev', $ctx.$this);
           }
         };
       },
@@ -236,19 +235,19 @@ const htmxJson = (function () {
       match: attr => attr.name === 'json-with',
       factory(elm, attr, createGetter) {
         const getter = createGetter(attr.value, "$prev");
-        let $prev = undefined;
 
         if (HTMX_JSON_DEBUG && !getter) {
           console.warn("Missing value for attribute json-with", elm);
           return undefined;
         } else if (!getter) return undefined;
 
-        return ($ctx) => {
+        return ($ctx, elm) => {
+          const $prev = get(elm, 'json-with-prev');
           const newThis = getter({ ...$ctx, $prev });
           if (!newThis) {
             return false;
           }
-          $prev = newThis;
+          set(elm, 'json-with-prev', newThis);
           const $parent = createParentContext($ctx);
           return createContext(newThis, $parent);
         };
@@ -264,7 +263,7 @@ const htmxJson = (function () {
           return undefined;
         } else if (!getter) return undefined;
 
-        return ($ctx) => {
+        return ($ctx, elm) => {
           elm.textContent = getter($ctx);
         };
       },
@@ -280,8 +279,8 @@ const htmxJson = (function () {
             return undefined;
           } else if (!getter) return undefined;
 
-          return ($ctx) => {
-            elm.style.display = getter($ctx) ? "" : "none";
+          return ($ctx, elm) => {
+            (/** @type {HTMLElement} */ (elm)).style.display = getter($ctx) ? "" : "none";
           };
         }
       },
@@ -297,8 +296,8 @@ const htmxJson = (function () {
             return undefined;
           } else if (!getter) return undefined;
 
-          return ($ctx) => {
-            elm.style.display = getter($ctx) ? "none" : "";
+          return ($ctx, elm) => {
+            (/** @type {HTMLElement} */ (elm)).style.display = getter($ctx) ? "none" : "";
           };
         }
       },
@@ -308,39 +307,39 @@ const htmxJson = (function () {
       factory(elm, attr, createGetter) {
         if (elm instanceof HTMLInputElement) {
           if (elm.type === "checkbox") {
-            return ($ctx) => {
+            return ($ctx, elm) => {
               if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
                 const value = $ctx.$this[attr.value];
                 if (value !== undefined) {
-                  elm.checked = value;
+                  (/** @type {HTMLInputElement} */ (elm)).checked = value;
                 }
               }
             };
           } else if (elm.type === "radio") {
-            return ($ctx) => {
+            return ($ctx, elm) => {
               if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
                 const value = $ctx.$this[attr.value];
                 if (value !== undefined) {
-                  elm.checked = value === elm.value;
+                  (/** @type {HTMLInputElement} */ (elm)).checked = value === (/** @type {HTMLInputElement} */ (elm)).value;
                 }
               }
             };
           } else {
-            return ($ctx) => {
+            return ($ctx, elm) => {
               if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
                 const value = $ctx.$this[attr.value];
                 if (value !== undefined) {
-                  elm.value = value;
+                  (/** @type {HTMLInputElement} */ (elm)).value = value;
                 }
               }
             };
           }
         } else if (elm instanceof HTMLSelectElement || elm instanceof HTMLTextAreaElement) {
-          return ($ctx) => {
+          return ($ctx, elm) => {
             if (typeof $ctx.$this === 'object' && $ctx.$this !== null) {
               const value = $ctx.$this[attr.value];
               if (value !== undefined) {
-                elm.value = value;
+                (/** @type {HTMLInputElement} */ (elm)).value = value;
               }
             }
           };
