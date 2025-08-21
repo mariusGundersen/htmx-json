@@ -132,27 +132,35 @@ const htmxJson = (function () {
 
 
   /**
-   * @param {Element} elm
+   * @param {Element | null} elm
    * @returns {elm is HTMLTemplateElement}
    */
   function isTemplateElement(elm) {
-    return elm.nodeName === 'TEMPLATE';
+    return elm?.nodeName === 'TEMPLATE';
   }
 
   /**
-   * @param {Node} elm
-   * @returns {elm is Element}
+   * @param {Node | null} node
+   * @returns {node is Element}
    */
-  function isElement(elm) {
-    return elm.nodeType === 1;
+  function isElement(node) {
+    return node?.nodeType === 1;
   }
 
   /**
-   * @param {Node} elm
-   * @returns {elm is Text}
+   * @param {Node | null} node
+   * @returns {node is Comment}
    */
-  function isText(elm) {
-    return elm.nodeType === 3;
+  function isComment(node) {
+    return node?.nodeType === 8;
+  }
+
+  /**
+   * @param {Node | null} node
+   * @returns {node is Text}
+   */
+  function isText(node) {
+    return node?.nodeType === 3;
   }
 
   /**
@@ -173,8 +181,12 @@ const htmxJson = (function () {
    * @typedef {(elm: Element, attr: Attr, createGetter: CreateGetter) => (AttributeHandler | undefined | null)} AttributeHandlerFactory
    */
 
+  /**
+   * @typedef {{match: (attr: Attr) => boolean, factory: AttributeHandlerFactory}} Directive
+   */
 
-  /** @type {Array<{match: (attr: Attr) => boolean, factory: AttributeHandlerFactory}>} */
+
+  /** @type {Array<Directive>} */
   const directives = [
     {
       match: (attr) => attr.name.startsWith("@"),
@@ -358,13 +370,16 @@ const htmxJson = (function () {
 
     // Using for of here, so that added attributes from the factories are picked up
     for (const attr of elm.attributes) {
-      const handlerFactory = directives.find(f => f.match(attr))?.factory;
-      const handler = handlerFactory?.(elm, attr, createGetter);
-      if (handler) {
-        result.push(handler);
-      } else if (handler === null) {
-        result.push(null);
-        break;
+      const found = directives.find(f => f.match(attr));
+      if (found) {
+
+        const handler = found.factory(elm, attr, createGetter);
+        if (handler) {
+          result.push(handler);
+        } else if (handler === null) {
+          result.push(null);
+          break;
+        }
       }
     }
 
@@ -586,10 +601,10 @@ const htmxJson = (function () {
     const existingList = [];
 
     let existingComment = elm.nextSibling;
-    while (existingComment instanceof Text) {
+    while (isText(existingComment)) {
       existingComment = existingComment.nextSibling;
     }
-    while (existingComment instanceof Comment && existingComment !== end) {
+    while (isComment(existingComment) && existingComment !== end) {
       existingList.push([existingComment.data, existingComment]);
       existingComment = findComment(existingComment) ?? end;
     }
@@ -689,12 +704,12 @@ const htmxJson = (function () {
    * @returns {Comment}
    */
   function getOrCreateNextComment(elm, end) {
-    let comment = elm.nextSibling;
-    while (comment instanceof Text) {
-      comment = comment.nextSibling;
+    let node = elm.nextSibling;
+    while (isText(node)) {
+      node = node.nextSibling;
     }
-    if (comment instanceof Comment && comment !== end) {
-      return comment;
+    if (isComment(node) && node !== end) {
+      return node;
     } else {
       const comment = document.createComment("");
       elm.after(comment);
@@ -720,7 +735,7 @@ const htmxJson = (function () {
    * @param {string} attr
    */
   function getNextTemplateWithAttribute(elm, attr) {
-    return elm.nextElementSibling instanceof HTMLTemplateElement &&
+    return isTemplateElement(elm.nextElementSibling) &&
       elm.nextElementSibling.hasAttribute(attr)
       ? elm.nextElementSibling
       : undefined;
@@ -737,7 +752,7 @@ const htmxJson = (function () {
       eachCount = 0;
     node = node?.nextSibling ?? null;
     while (node && node !== end) {
-      if (node instanceof Comment) {
+      if (isComment(node)) {
         if (ifCount > 0 && node.data === "/json-if") {
           ifCount--;
         } else if (eachCount > 0 && node.data === "/json-each") {
@@ -749,7 +764,7 @@ const htmxJson = (function () {
         ) {
           return node;
         }
-      } else if (node instanceof HTMLTemplateElement) {
+      } else if (isElement(node) && isTemplateElement(node)) {
         for (const { name } of node.attributes) {
           if (name === "json-if") {
             ifCount++;
@@ -837,7 +852,7 @@ const htmxJson = (function () {
       dest[jsonMap] = { ...src[jsonMap] };
     }
 
-    if (src instanceof HTMLTemplateElement && dest instanceof HTMLTemplateElement) {
+    if (isElement(src) && isTemplateElement(src) && isElement(dest) && isTemplateElement(dest)) {
       cloneJsonMap(src.content.firstChild, dest.content.firstChild);
     } else {
       cloneJsonMap(src.firstChild, dest.firstChild);
