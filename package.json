@@ -38,6 +38,6 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/mariusGundersen/htmx-json"
+    "url": "git+https://github.com/mariusGundersen/htmx-json.git"
   }
 }
