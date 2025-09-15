@@ -12,7 +12,9 @@ const htmxJson = (function () {
       transformResponse(text, xhr, elt) {
         if (xhr.getResponseHeader('content-type') === 'application/json') {
           // prevent problems if the json contains html content
-          return btoa(text);
+          const div = document.createElement('div');
+          div.textContent = text;
+          return div.innerHTML;
         } else {
           return text;
         }
@@ -26,9 +28,8 @@ const htmxJson = (function () {
         /** @type {{ textContent: string; }} */ fragment
       ) {
         if (swapStyle === "json") {
-          const json = JSON.parse(atob(fragment.textContent));
-
           try {
+            const json = JSON.parse(fragment.textContent);
             swap(target, { $this: json });
           } catch (e) {
             target.innerHTML = `<pre style="background: pink; color: red;>${e instanceof Error ? e.message : e}</pre>`
