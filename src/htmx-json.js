@@ -32,7 +32,7 @@ const htmxJson = (function () {
             const json = JSON.parse(fragment.textContent);
             swap(target, { $this: json });
           } catch (e) {
-            target.innerHTML = `<pre style="background: pink; color: red;>${e instanceof Error ? e.message : e}</pre>`
+            target.innerHTML = `<pre style="background: pink; color: red;">${e instanceof Error ? e.message : e}</pre>`
           }
 
           return [target];
