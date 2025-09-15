@@ -4,18 +4,35 @@ var HTMX_JSON_DEBUG = true;
 const htmxJson = (function () {
   if (typeof htmx !== "undefined") {
     htmx.defineExtension("json-swap", {
-      isInlineSwap: function (/** @type {string} */ swapStyle) {
+      /**
+       * @param {string} text
+       * @param {XMLHttpRequest} xhr
+       * @param {Element} elt
+       */
+      transformResponse(text, xhr, elt) {
+        if (xhr.getResponseHeader('content-type') === 'application/json') {
+          // prevent problems if the json contains html content
+          return btoa(text);
+        } else {
+          return text;
+        }
+      },
+      isInlineSwap(/** @type {string} */ swapStyle) {
         return swapStyle === "json";
       },
-      handleSwap: function (
+      handleSwap(
         /** @type {string} */ swapStyle,
-        /** @type {Node} */ target,
+        /** @type {Element} */ target,
         /** @type {{ textContent: string; }} */ fragment
       ) {
         if (swapStyle === "json") {
-          const json = JSON.parse(fragment.textContent);
+          const json = JSON.parse(atob(fragment.textContent));
 
-          swap(target, { $this: json });
+          try {
+            swap(target, { $this: json });
+          } catch (e) {
+            target.innerHTML = `<pre style="background: pink; color: red;>${e instanceof Error ? e.message : e}</pre>`
+          }
 
           return [target];
         }
